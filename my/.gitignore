@@ -1,0 +1,319 @@
+# ==========================
+# Miscellaneous
+# ==========================
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# Backup and temp files
+*~
+*.tmp
+*.temp
+
+# ==========================
+# IntelliJ / JetBrains IDEs
+# ==========================
+*.iml
+*.ipr
+*.iws
+.idea/
+out/
+
+# ==========================
+# VS Code
+# ==========================
+.vscode/
+
+# ==========================
+# Flutter / Dart / Pub
+# ==========================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+**/doc/api/
+**/ios/Flutter/.last_build_id
+
+# Flutter test outputs
+test/**/*.log
+test/**/coverage/
+
+# Symbolication & obfuscation files
+app.*.symbols
+app.*.map.json
+
+# Generated plugin registrant
+ios/Flutter/GeneratedPluginRegistrant.*
+
+# ==========================
+# Android Studio / Gradle
+# ==========================
+/android/.gradle/
+/android/.idea/
+/android/.cxx/
+/android/app/build/
+/android/build/
+/android/captures/
+/android/.externalNativeBuild/
+/android/local.properties
+/android/gradle/
+/android/gradle-wrapper.jar
+/android/app/debug/
+/android/app/profile/
+/android/app/release/
+/android/.flutter-plugins
+/android/.flutter-plugins-dependencies
+/android/.dart_tool/
+
+.gradle/
+gradle/
+local.properties
+flutter_export_environment.sh
+*.keystore
+*.jks
+
+# ==========================
+# macOS
+# ==========================
+*.DS_Store
+
+# ==========================
+# iOS / Xcode
+# ==========================
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Pods/
+ios/Runner.xcworkspace/
+ios/Flutter/App.framework/
+ios/Flutter/engine/
+ios/.symlinks/
+firebase_app_id_file.json
+
+# Xcode
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcworkspace/contents.xcworkspacedata
+*.xcworkspace/xcuserdata/
+
+# ==========================
+# Python
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pyre/
+.mypy_cache/
+.dmypy.json
+.pytype/
+
+# ==========================
+# Java
+# ==========================
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.car
+*.class
+*.log
+hs_err_pid*
+.recommenders
+bin/
+target/
+build/
+out/
+logs/
+*.iml
+*.ipr
+*.iws
+.idea/
+.settings/
+.gradle/
+.mvn/
+dependency-reduced-pom.xml
+release.properties
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+*~.nib
+.localhistory/
+
+# ==========================
+# C / C++ / CMake
+# ==========================
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+*.so
+*.exe
+*.out
+*.app
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+*.dll
+*.dylib
+*.tlb
+*.olb
+*.exp
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Executables
+*.exe
+*.exe~
+*.out
+*.app
+
+# Build directories
+build/
+Build/
+cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+Testing/
+
+# ==========================
+# Node.js / JavaScript / TypeScript / npm / Yarn / pnpm
+# ==========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Optional npm cache directory
+.npm/
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variables file
+.env
+.env.*.local
+
+# Next.js build output
+.next/
+out/
+
+# Nuxt.js build / generate output
+.nuxt/
+dist/
+
+# Vue.js
+/dist/
+/public/dist/
+node_modules/
+/*.local
+/.temp/
+yarn-error.log
+
+# React
+/build/
+/coverage/
+/.cache/
+/public/build/
+
+# TypeScript
+*.tsbuildinfo
+
+# ==========================
+# Express.js
+# ==========================
+node_modules/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# PM2 process files
+pids/
+*.pid
+*.seed
+
+# ==========================
+# Logs
+# ==========================
+*.log
+
+# ==========================
+# Lock files (again, just to be sure)
+# ==========================
+pubspec.lock
+package-lock.json
+yarn.lock
