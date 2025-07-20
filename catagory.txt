@@ -1,0 +1,50 @@
+features/
+└── projects/
+    └── user_management/
+        └── hooks_riverpod/
+            ├── features/
+            │   ├── auth/
+            │   │   ├── dao/
+            │   │   ├── dto/
+            │   │   ├── models/
+            │   │   ├── viewmodels/
+            │   │   └── views/
+            │   ├── home/
+            │   │   └── views/
+            │   └── management/
+            │       ├── dao/
+            │       ├── models/
+            │       ├── viewmodels/
+            │       └── views/
+            └── main.dart
+data/
+└── db/
+    └── db_helper.dart
+core/
+└── widgets/
+    └── selectable_outlined_button_with_pressed.dart
+
+
+--------------------------------------------------------
+
+features/
+└── projects/
+    └── user_management/
+        └── hooks_riverpod/
+            ├── features/
+            │   ├── auth/
+            │   ├── home/
+            │   │   └── views/
+            │   │       └── home_view.dart
+            │   └── management/
+            │       ├── dao/
+            │       │   └── user_dao.dart
+            │       ├── models/
+            │       │   └── user_model.dart
+            │       ├── providers/
+            │       │   └── user_provider.dart ⭐️ NEW
+            │       ├── state/
+            │       │   └── user_notifier.dart ⭐️ NEW
+            │       └── views/
+            │           ├── user_form_view.dart
+            │           └── user_list_view.dart
