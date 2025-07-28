@@ -8,21 +8,21 @@ final List<GoRoute> managementRoutesStream = [
   GoRoute(
     path: '/user/add',
     builder: (BuildContext context, GoRouterState state) {
-      return const UserFormPageStream();
+      return const UserFormViewStream();
     },
   ),
   GoRoute(
     path: '/user/edit/:id',
     builder: (BuildContext context, GoRouterState state) {
       final id = int.tryParse(state.pathParameters['id'] ?? '');
-      return UserFormPageStream(userId: id);
+      return UserFormViewStream(userId: id);
     },
   ),
   GoRoute(
     path: '/user/detail/:id',
     builder: (BuildContext context, GoRouterState state) {
       final id = int.tryParse(state.pathParameters['id'] ?? '');
-      return UserDetailPageStream(userId: id!);
+      return UserDetailViewStream(userId: id!);
     },
   ),
 ];

@@ -1,0 +1,1212 @@
+1.lib/data/db/db_helper.dart
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:my/features/projects/user_management/hooks_riverpod/features/data/db/auth_table.dart';
+import 'package:my/features/projects/user_management/stream/features/data/db/stream_auth_table.dart';
+import 'package:path/path.dart';
+import 'package:sqflite_common/sqflite.dart';
+
+class DbHelper {
+  static const _dbWebName = 'web_database.db';
+  static const _dbAppName = 'app_database.db';
+  static const _dbVersion = 1;
+  static Database? _db;
+
+  static final DbHelper instance = DbHelper._internal();
+  factory DbHelper() => instance;
+  DbHelper._internal();
+
+  Future<Database> get database async {
+    if (_db != null) return _db!;
+    _db = await _initDatabase();
+    return _db!;
+  }
+
+  Future<Database> _initDatabase() async {
+    final factory = databaseFactory;
+    final path =
+        kIsWeb ? _dbWebName : join(await getDatabasesPath(), _dbAppName);
+
+    return await factory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: _dbVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      ),
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    // auth table
+    await AuthTable.createTable(db);
+    await AuthTableStream.createTable(db);
+  }
+
+  static Future<void> _onUpgrade(
+      Database db, int oldVersion, int newVersion) async {
+    // TODO: Add upgrade logic
+  }
+}
+
+2.lib/features/projects/user_management/user_management_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:my/core/widgets/selectable_button_group.dart';
+import '../../../core/widgets/selectable_outlined_button.dart';
+
+class UserManagementView extends ConsumerWidget {
+  const UserManagementView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedIndex = ref.watch(selectedIndexProvider);
+
+    final buttonData = [
+      ('stream', Icons.build, '/stream'),
+      ('flutter_hooks', Icons.people, '/flutter_hooks'),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('这是 UserManagementView 页面')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double maxWidth = constraints.maxWidth;
+
+            // 决定每个按钮的宽度
+            double itemWidth;
+            if (maxWidth > 1000) {
+              itemWidth = (maxWidth - 48) / 4; // 网页：4列
+            } else if (maxWidth > 600) {
+              itemWidth = (maxWidth - 36) / 3; // 平板：3列
+            } else {
+              itemWidth = (maxWidth - 24) / 2; // 手机：2列
+            }
+
+            return SingleChildScrollView(
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(buttonData.length, (index) {
+                  final (label, icon, route) = buttonData[index];
+
+                  return SizedBox(
+                    width: itemWidth,
+                    child: SelectableOutlinedButton(
+                      isSelected: selectedIndex == index,
+                      icon: icon,
+                      label: label,
+                      onPressed: () {
+                        ref.read(selectedIndexProvider.notifier).state = index;
+                        context.push(route);
+                      },
+                      selectedBackgroundColor: Colors.black,
+                      unselectedBackgroundColor: Colors.grey.shade100,
+                      selectedTextColor: Colors.yellow,
+                      unselectedTextColor: Colors.black87,
+                      selectedIconColor: Colors.yellow,
+                      unselectedIconColor: Colors.black45,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      borderSide: const BorderSide(color: Colors.black),
+                    ),
+                  );
+                }),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+3.lib/features/projects/user_management/stream/core/routes/stream_routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/auth/routes/stream_auth_routes.dart';
+import '../../features/home/routes/stream_home_routes.dart';
+import '../../features/management/routes/stream_user_routes.dart';
+import '../../features/stream_view.dart';
+
+final List<GoRoute> stream = [
+  GoRoute(
+    path: '/stream',
+    builder: (context, state) => const StreamView(),
+  ),
+  ...authRoutesStream,
+  ...homeRoutesStream,
+  ...managementRoutesStream,
+];
+
+4.lib/features/projects/user_management/stream/features/auth/routes/stream_auth_routes.dart
+import 'package:go_router/go_router.dart';
+import '../views/stream_login_view.dart';
+import '../views/stream_register_success.dart';
+import '../views/stream_register_view.dart';
+
+final List<GoRoute> authRoutesStream = [
+  GoRoute(
+    path: '/login',
+    builder: (context, state) => const LoginViewStream(),
+  ),
+  GoRoute(
+    path: '/register',
+    builder: (context, state) => const RegisterStream(),
+  ),
+  GoRoute(
+    path: '/register_success',
+    builder: (context, state) => const RegisterSuccessStream(),
+  ),
+];
+
+5.lib/features/projects/user_management/stream/features/auth/views/stream_login_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:my/core/widgets/selectable_outlined_button_with_state.dart';
+
+import '../viewmodels/stream_auth_button_notifier.dart';
+import '../viewmodels/stream_auth_viewmodel.dart';
+import '../widgets/stream_dialog_widget.dart';
+
+class LoginViewStream extends HookConsumerWidget {
+  const LoginViewStream({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final emailCtrl = useTextEditingController();
+    final passCtrl = useTextEditingController();
+
+    final authViewModel = ref.read(authViewModelProvider.notifier);
+    final authButtonState = ref.watch(authButtonProvideStream);
+    final authButtonNotifier = ref.read(authButtonProvideStream.notifier);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: emailCtrl,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            TextField(
+              controller: passCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Password'),
+            ),
+            const SizedBox(height: 24),
+
+            // ✅ Login Button
+            SelectableOutlinedButtonWithState(
+              isSelected: false,
+              isPressed: authButtonState.isPressed(AuthButtonType.login),
+              icon: Icons.login,
+              label: 'Login',
+              onPressed: () async {
+                authButtonNotifier.setPressed(AuthButtonType.login);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => DialogWidgetStream(
+                    title: 'Confirm Login', // ✅ 设置标题
+                    onConfirm: () => authViewModel.login(
+                      emailCtrl.text.trim(),
+                      passCtrl.text.trim(),
+                    ),
+                  ),
+                );
+                authButtonNotifier.reset();
+                if (confirmed == true && context.mounted) {
+                  context.go('/home');
+                } else if (confirmed == false && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Login failed')),
+                  );
+                }
+              },
+              selectedBackgroundColor: Colors.grey.shade300,
+              unselectedBackgroundColor: Colors.grey.shade100,
+              pressedBackgroundColor: Colors.black,
+              selectedTextColor: Colors.black,
+              unselectedTextColor: Colors.black87,
+              pressedTextColor: Colors.yellow,
+              selectedIconColor: Colors.black,
+              unselectedIconColor: Colors.black45,
+              pressedIconColor: Colors.yellow,
+              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              borderSide: const BorderSide(color: Colors.black),
+            ),
+
+            const SizedBox(height: 50),
+
+            // ✅ Register Button
+            SelectableOutlinedButtonWithState(
+              isSelected: false,
+              isPressed: authButtonState.isPressed(AuthButtonType.register),
+              icon: Icons.app_registration,
+              label: 'Register',
+              onPressed: () async {
+                authButtonNotifier.setPressed(AuthButtonType.register);
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => DialogWidgetStream(
+                    title: 'Confirm Register', // ✅ 设置标题
+                    onConfirm: () => Future.value(true),
+                  ),
+                );
+                authButtonNotifier.reset();
+                if (confirmed == true && context.mounted) {
+                  context.go('/register');
+                } else if (confirmed == false && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Register failed')),
+                  );
+                }
+              },
+              selectedBackgroundColor: Colors.grey.shade300,
+              unselectedBackgroundColor: Colors.grey.shade100,
+              pressedBackgroundColor: Colors.black,
+              selectedTextColor: Colors.black,
+              unselectedTextColor: Colors.black87,
+              pressedTextColor: Colors.yellow,
+              selectedIconColor: Colors.black,
+              unselectedIconColor: Colors.black45,
+              pressedIconColor: Colors.yellow,
+              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              borderSide: const BorderSide(color: Colors.black),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+6.lib/features/projects/user_management/stream/features/auth/views/stream_register_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../viewmodels/stream_auth_viewmodel.dart';
+
+/// Registration Page
+class RegisterStream extends HookConsumerWidget {
+  const RegisterStream({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nameCtrl = useTextEditingController();
+    final emailCtrl = useTextEditingController();
+    final passCtrl = useTextEditingController();
+    final viewModel = ref.watch(authViewModelProvider.notifier);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'name')),
+            TextField(
+                controller: emailCtrl,
+                decoration: const InputDecoration(labelText: 'Email')),
+            TextField(
+                controller: passCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Password')),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                final success = await viewModel.register(nameCtrl.text.trim(),
+                    emailCtrl.text.trim(), passCtrl.text.trim());
+                if (success && context.mounted) {
+                  context.go('/register_success');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Register failed')));
+                }
+              },
+              child: const Text('Register'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+7.lib/features/projects/user_management/stream/features/auth/viewmodels/stream_auth_button_notifier.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+enum AuthButtonType { login, register }
+
+class AuthButtonState {
+  final AuthButtonType? pressed;
+  const AuthButtonState({this.pressed});
+
+  bool isPressed(AuthButtonType type) => pressed == type;
+
+  AuthButtonState copyWith({AuthButtonType? pressed}) {
+    return AuthButtonState(pressed: pressed);
+  }
+}
+
+class AuthButtonNotifier extends StateNotifier<AuthButtonState> {
+  AuthButtonNotifier() : super(const AuthButtonState());
+
+  void setPressed(AuthButtonType? type) {
+    state = state.copyWith(pressed: type);
+  }
+
+  void reset() => setPressed(null);
+}
+
+final authButtonProvideStream =
+    StateNotifierProvider<AuthButtonNotifier, AuthButtonState>(
+  (ref) => AuthButtonNotifier(),
+);
+
+8.lib/features/projects/user_management/stream/features/auth/viewmodels/stream_auth_viewmodel.dart
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/dto/stream_user_dto.dart';
+import '../dao/stream_auth_dao.dart';
+
+final authViewModelProvider =
+    StateNotifierProvider<AuthViewModel, AsyncValue<void>>((ref) {
+  return AuthViewModel();
+});
+
+class AuthViewModel extends StateNotifier<AsyncValue<void>> {
+  AuthViewModel() : super(const AsyncValue.data(null));
+
+  Future<bool> login(String email, String password) async {
+    state = const AsyncLoading();
+    final result = await AuthDaoStream.login(email, password);
+    state = const AsyncData(null);
+    return result;
+  }
+
+  Future<bool> register(String name, String email, String password) async {
+    state = const AsyncLoading();
+
+    final dto = UserDtoStream(name: name, email: email, password: password);
+    final userModel = dto.toModel(); // ✅
+
+    final result = await AuthDaoStream.register(userModel);
+    state = const AsyncData(null);
+    return result;
+  }
+}
+
+9.lib/features/projects/user_management/stream/features/auth/dao/stream_auth_dao.dart
+import 'package:my/data/db/db_helper.dart';
+
+import '../../data/db/stream_auth_table.dart';
+import '../../data/models/stream_user_model.dart';
+
+class AuthDaoStream {
+  static Future<bool> register(UserModelStream userModel) async {
+    final db = await DbHelper.instance.database;
+
+    try {
+      await db.insert(AuthTableStream.tableName, userModel.toMap());
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> login(String email, String password) async {
+    final db = await DbHelper.instance.database;
+
+    final res = await db.query(AuthTableStream.tableName,
+        where: 'email = ? AND password = ?', whereArgs: [email, password]);
+    return res.isNotEmpty;
+  }
+}
+
+10.lib/features/projects/user_management/stream/features/auth/widgets/stream_dialog_widget.dart
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+class DialogWidgetStream extends StatefulWidget {
+  final Future<bool> Function() onConfirm;
+  final String title; // ✅ 新增标题字段
+
+  const DialogWidgetStream({
+    super.key,
+    required this.onConfirm,
+    required this.title,
+  });
+
+  @override
+  State<DialogWidgetStream> createState() => _DialogWidgetStreamState();
+}
+
+class _DialogWidgetStreamState extends State<DialogWidgetStream> {
+  Future<bool>? inProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoAlertDialog(
+      title: Text(widget.title), // ✅ 使用传入的标题
+      content: inProgress == null
+          ? const Text('Do you want to login with the entered credentials?')
+          : FutureBuilder<bool>(
+              future: inProgress,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 50,
+                    child: Center(child: CupertinoActivityIndicator()),
+                  );
+                } else if (snapshot.hasError) {
+                  return Text('Login failed: ${snapshot.error}');
+                } else if (snapshot.hasData && snapshot.data == true) {
+                  return const Text('Login successful! Redirecting...');
+                } else {
+                  return const Text('Login failed. Please try again.');
+                }
+              },
+            ),
+      actions: inProgress == null
+          ? [
+              CupertinoDialogAction(
+                onPressed: () => context.pop(null),
+                child: const Text('Cancel'),
+              ),
+              CupertinoDialogAction(
+                onPressed: () {
+                  setState(() {
+                    inProgress = widget.onConfirm();
+                  });
+
+                  // 监听登录结果，关闭dialog并返回bool
+                  inProgress!.then((success) {
+                    if (mounted) {
+                      context.pop(success);
+                    }
+                  });
+                },
+                child: const Text('Confirm'),
+              ),
+            ]
+          : [],
+    );
+  }
+}
+
+11.lib/features/projects/user_management/stream/features/data/db/stream_auth_table.dart
+import 'package:sqflite/sqlite_api.dart';
+
+class AuthTableStream {
+  static const String tableName = 'users_stream';
+
+  static Future<void> createTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        email TEXT NOT NULL,
+        password TEXT NOT NULL,
+        createdAt TEXT,
+        updatedAt TEXT
+      )
+    ''');
+  }
+}
+
+12.lib/features/projects/user_management/stream/features/data/dto/stream_user_dto.dart
+import '../models/stream_user_model.dart';
+
+/// dtos/user_dto_stream.dart
+class UserDtoStream {
+  final String name;
+  final String email;
+  final String password;
+
+  UserDtoStream({
+    required this.name,
+    required this.email,
+    required this.password,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'email': email,
+        'password': password,
+      };
+
+  factory UserDtoStream.fromJson(Map<String, dynamic> json) => UserDtoStream(
+        name: json['name'] ?? '',
+        email: json['email'] ?? '',
+        password: json['password'] ?? '',
+      );
+
+  /// 转换为数据库使用的 UserModelStream
+  UserModelStream toModel() => UserModelStream(
+        name: name,
+        email: email,
+        password: password,
+      );
+}
+
+13.lib/features/projects/user_management/stream/features/data/models/stream_user_model.dart
+/// models/device_model.dart
+class UserModelStream {
+  final int? id;
+  final String? name;
+  final String email;
+  final String password;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  UserModelStream({
+    this.id,
+    this.name,
+    required this.email,
+    required this.password,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  /// 用于数据库插入、更新的 map
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'name': name ?? '',
+      'email': email,
+      'password': password,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+
+  /// 从数据库取出的 map 还原成 UserModelStream
+  factory UserModelStream.fromMap(Map<String, dynamic> map) {
+    return UserModelStream(
+      id: map['id'] as int?,
+      name: map['name'] as String?,
+      email: map['email'] ?? '',
+      password: map['password'] ?? '',
+      createdAt:
+          map['createdAt'] != null ? DateTime.tryParse(map['createdAt']) : null,
+      updatedAt:
+          map['updatedAt'] != null ? DateTime.tryParse(map['updatedAt']) : null,
+    );
+  }
+
+  /// JSON序列化
+  Map<String, dynamic> toJson() => toMap();
+
+  factory UserModelStream.fromJson(Map<String, dynamic> json) =>
+      UserModelStream.fromMap(json);
+
+  /// 更新部分字段
+  UserModelStream copyWith({
+    int? id,
+    String? name,
+    String? email,
+    String? password,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return UserModelStream(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      password: password ?? this.password,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'UserModelStream(id: $id, name: $name, email: $email, createdAt: $createdAt, updatedAt: $updatedAt)';
+  }
+}
+
+14.lib/features/projects/user_management/stream/features/home/views/stream_home_view.dart
+// lib/features/.../management/views/home_view.dart (rewritten using hook + stream)
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../management/dao/stream_user_dao.dart';
+import '../../management/providers/stream_user_provider.dart';
+
+class HomeViewStream extends HookConsumerWidget {
+  const HomeViewStream({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncUsers = ref.watch(userStreamProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Home'),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'add') {
+                context.push('/user/add');
+              } else if (value == 'logout') {
+                context.go('/login');
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'add', child: Text('Add User')),
+              PopupMenuItem(value: 'logout', child: Text('Logout')),
+            ],
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/user/add'),
+        child: const Icon(Icons.add),
+      ),
+      body: asyncUsers.when(
+        data: (users) => users.isEmpty
+            ? const Center(child: Text('No users found.'))
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('ID')),
+                    DataColumn(label: Text('Name')),
+                    DataColumn(label: Text('Email')),
+                    DataColumn(label: Text('Created')),
+                    DataColumn(label: Text('Updated')),
+                    DataColumn(label: Text('Actions')),
+                  ],
+                  rows: users.map((user) {
+                    return DataRow(
+                      cells: [
+                        DataCell(Text(user.id?.toString() ?? '')),
+                        DataCell(Text(user.name ?? '')),
+                        DataCell(Text(user.email)),
+                        DataCell(
+                            Text(user.createdAt?.toIso8601String() ?? '-')),
+                        DataCell(
+                            Text(user.updatedAt?.toIso8601String() ?? '-')),
+                        DataCell(Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.info),
+                              onPressed: () =>
+                                  context.push('/user/detail/${user.id}'),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () =>
+                                  context.push('/user/edit/${user.id}'),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () async {
+                                if (user.id != null) {
+                                  await UserDaoStream().deleteUser(user.id!);
+                                }
+                              },
+                            ),
+                          ],
+                        )),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(child: Text('Error: $err')),
+      ),
+    );
+  }
+}
+
+15.lib/features/projects/user_management/stream/features/home/routes/stream_home_routes.dart
+import 'package:go_router/go_router.dart';
+
+import '../views/stream_home_view.dart';
+
+final List<GoRoute> homeRoutesStream = [
+  GoRoute(
+    path: '/home',
+    builder: (context, state) => const HomeViewStream(),
+  ),
+];
+
+
+
+16.lib/features/projects/user_management/stream/features/management/routes/stream_user_routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../views/stream_user_detail_view.dart';
+import '../views/stream_user_form_view.dart';
+
+final List<GoRoute> managementRoutesStream = [
+  GoRoute(
+    path: '/user/add',
+    builder: (BuildContext context, GoRouterState state) {
+      return const UserFormViewStream();
+    },
+  ),
+  GoRoute(
+    path: '/user/edit/:id',
+    builder: (BuildContext context, GoRouterState state) {
+      final id = int.tryParse(state.pathParameters['id'] ?? '');
+      return UserFormViewStream(userId: id);
+    },
+  ),
+  GoRoute(
+    path: '/user/detail/:id',
+    builder: (BuildContext context, GoRouterState state) {
+      final id = int.tryParse(state.pathParameters['id'] ?? '');
+      return UserDetailViewStream(userId: id!);
+    },
+  ),
+];
+
+17.lib/features/projects/user_management/stream/features/management/providers/stream_user_provider.dart
+// lib/features/.../management/providers/user_stream_provider.dart
+// 🚧 WIP - Refactoring to flutter_hooks + stream
+// You have a complete working user management system using Riverpod + Future-based logic.
+// Let's start converting the user management (Home, Add/Edit, Detail) to `flutter_hooks + Stream` architecture.
+
+// Step 1: Replace UserNotifier with Stream-based Provider
+
+// lib/features/.../management/providers/user_stream_provider.dart
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/models/stream_user_model.dart';
+import '../dao/stream_user_dao.dart';
+import '../state/stream_user_notifier.dart';
+
+final userStreamProvider = StreamProvider<List<UserModelStream>>((ref) async* {
+  final dao = UserDaoStream();
+  while (true) {
+    final users = await dao.getAllUsers();
+    yield users;
+    await Future.delayed(const Duration(seconds: 2));
+  }
+});
+
+final userNotifierProvider =
+    StateNotifierProvider<UserNotifier, List<UserModelStream>>(
+  (ref) => UserNotifier(),
+);
+
+
+18.lib/features/projects/user_management/stream/features/management/state/stream_user_notifier.dart
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../../data/models/stream_user_model.dart';
+import '../dao/stream_user_dao.dart';
+
+class UserNotifier extends StateNotifier<List<UserModelStream>> {
+  final UserDaoStream _repo = UserDaoStream();
+
+  UserNotifier() : super([]) {
+    loadUsers(); // 初始化加载
+  }
+
+  Future<void> loadUsers() async {
+    state = await _repo.getAllUsers();
+  }
+
+  Future<bool> insertUser(UserModelStream user) async {
+    try {
+      await _repo.insertUser(user.copyWith(
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ));
+      await loadUsers();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> updateUser(UserModelStream user) async {
+    try {
+      await _repo.updateUser(user.copyWith(updatedAt: DateTime.now()));
+      await loadUsers();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> deleteUser(int id) async {
+    await _repo.deleteUser(id);
+    await loadUsers();
+  }
+
+  Future<UserModelStream?> getUser(int id) async {
+    return await _repo.getUserById(id);
+  }
+}
+
+
+19.lib/features/projects/user_management/stream/features/management/dao/stream_user_dao.dart
+import 'package:my/data/db/db_helper.dart';
+import 'package:sqflite/sqflite.dart';
+
+import '../../data/db/stream_auth_table.dart';
+import '../../data/models/stream_user_model.dart';
+
+class UserDaoStream {
+  final String table = AuthTableStream.tableName;
+  // 工厂方式获取 db 实例
+  Future<Database> get _db async => await DbHelper.instance.database;
+
+  // UserDaoStream（使用构造函数依赖注入）
+  // final Future<Database> _db;
+  // UserDaoStream({Future<Database>? db}) : _db = db ?? DbHelper.database;
+
+  Future<void> insertUser(UserModelStream user) async {
+    final db = await _db;
+    try {
+      await db.insert(table, user.toMap());
+    } on DatabaseException catch (e) {
+      if (e.isUniqueConstraintError()) {
+        throw Exception('Email already exists');
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<UserModelStream?> getUserByEmail(String email) async {
+    final db = await _db;
+    final result = await db.query(
+      table,
+      where: 'email = ?',
+      whereArgs: [email],
+    );
+    return result.isNotEmpty ? UserModelStream.fromMap(result.first) : null;
+  }
+
+  Future<bool> login(String email, String password) async {
+    final db = await _db;
+    final result = await db.query(
+      table,
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<UserModelStream>> getAllUsers() async {
+    final db = await _db;
+    final result = await db.query(table);
+    return result.map((e) => UserModelStream.fromMap(e)).toList();
+  }
+
+  Future<int> updateUser(UserModelStream user) async {
+    if (user.id == null) throw Exception("ID is required to update user.");
+    final db = await _db;
+    return await db.update(
+      table,
+      user.toMap(),
+      where: 'id = ?',
+      whereArgs: [user.id],
+    );
+  }
+
+  Future<int> deleteUser(int id) async {
+    final db = await _db;
+    return await db.delete(table, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteAllUsers() async {
+    final db = await _db;
+    await db.delete(table);
+  }
+
+  Future<UserModelStream?> getUserById(int id) async {
+    final db = await _db;
+    final result = await db.query(table, where: 'id = ?', whereArgs: [id]);
+    return result.isNotEmpty ? UserModelStream.fromMap(result.first) : null;
+  }
+}
+
+20.lib/features/projects/user_management/stream/features/management/viewmodels/stream_user_viewmodel.dart
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:my/features/projects/user_management/stream/features/management/dao/stream_user_dao.dart';
+import '../../data/models/stream_user_model.dart';
+
+final userViewModelProvider =
+    ChangeNotifierProvider<UserViewModel>((ref) => UserViewModel());
+
+class UserViewModel extends ChangeNotifier {
+  final UserDaoStream _repo = UserDaoStream();
+
+  List<UserModelStream> users = [];
+
+  Future<void> loadUsers() async {
+    users = await _repo.getAllUsers(); // ✅ UserDao 直接返回 List<UserModelStream>
+    notifyListeners();
+  }
+
+  /// メール重複エラーを検知し、成功ならtrue, 重複エラーならfalseを返す
+  Future<bool> insertUser(UserModelStream user) async {
+    try {
+      await _repo.insertUser(user); // ✅ 不再用 toMap
+      await loadUsers();
+      return true;
+    } catch (e) {
+      if (e.toString().contains('UNIQUE constraint failed')) {
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  Future<bool> updateUser(UserModelStream user) async {
+    try {
+      await _repo.updateUser(user);
+      await loadUsers();
+      return true;
+    } catch (e) {
+      if (e.toString().contains('UNIQUE constraint failed')) {
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deleteUser(int id) async {
+    await _repo.deleteUser(id);
+    await loadUsers();
+  }
+
+  Future<void> deleteAll() async {
+    await _repo.deleteAllUsers();
+    await loadUsers();
+  }
+
+  Future<UserModelStream?> getUser(int id) async {
+    final data = await _repo.getUserById(id);
+    return data;
+  }
+}
+
+21.lib/features/projects/user_management/stream/features/management/views/stream_user_detail_view.dart
+// lib/features/user_management/views/user_detail_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+
+import '../../data/models/stream_user_model.dart';
+import '../dao/stream_user_dao.dart';
+
+class UserDetailViewStream extends HookWidget {
+  final int userId;
+  const UserDetailViewStream({super.key, required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = useState<UserModelStream?>(null);
+    final isLoading = useState(true);
+
+    useEffect(() {
+      () async {
+        user.value = await UserDaoStream().getUserById(userId);
+        isLoading.value = false;
+      }();
+      return null;
+    }, [userId]);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('User Detail')),
+      body: isLoading.value
+          ? const Center(child: CircularProgressIndicator())
+          : user.value == null
+              ? const Center(child: Text('User not found'))
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('ID: ${user.value!.id}'),
+                      const SizedBox(height: 8),
+                      Text('Name: ${user.value!.name ?? '-'}'),
+                      const SizedBox(height: 8),
+                      Text('Email: ${user.value!.email}'),
+                      const SizedBox(height: 8),
+                      Text(
+                          'Created: ${user.value!.createdAt?.toIso8601String() ?? '-'}'),
+                      const SizedBox(height: 8),
+                      Text(
+                          'Updated: ${user.value!.updatedAt?.toIso8601String() ?? '-'}'),
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+22.lib/features/projects/user_management/stream/features/management/views/stream_user_form_view.dart
+// lib/features/user_management/views/user_form_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/models/stream_user_model.dart';
+import '../dao/stream_user_dao.dart';
+
+class UserFormViewStream extends HookWidget {
+  final int? userId;
+  const UserFormViewStream({super.key, this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    final nameController = useTextEditingController();
+    final emailController = useTextEditingController();
+    final isLoading = useState(false);
+    final isEditing = userId != null;
+
+    useEffect(() {
+      if (isEditing) {
+        UserDaoStream().getUserById(userId!).then((user) {
+          if (user != null) {
+            nameController.text = user.name ?? '';
+            emailController.text = user.email;
+          }
+        });
+      }
+      return null;
+    }, [userId]);
+
+    Future<void> handleSubmit() async {
+      isLoading.value = true;
+      final name = nameController.text;
+      final email = emailController.text;
+
+      final user = UserModelStream(
+        id: userId,
+        name: name,
+        email: email,
+        password: '',
+        updatedAt: DateTime.now(),
+        createdAt: isEditing ? null : DateTime.now(),
+      );
+
+      if (isEditing) {
+        await UserDaoStream().updateUser(user);
+      } else {
+        await UserDaoStream().insertUser(user);
+      }
+
+      isLoading.value = false;
+      if (context.mounted) context.pop();
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(isEditing ? 'Edit User' : 'Add User')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Name'),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: isLoading.value ? null : handleSubmit,
+              child: Text(isEditing ? 'Update' : 'Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+23.lib/features/projects/user_management/stream/features/management/views/stream_user_list_view.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../providers/stream_user_provider.dart';
+
+class UserListPageStream extends ConsumerWidget {
+  const UserListPageStream({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usersAsync = ref.watch(userStreamProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('User List')),
+      body: usersAsync.when(
+        data: (users) => users.isEmpty
+            ? const Center(child: Text('No users found.'))
+            : ListView.builder(
+                itemCount: users.length,
+                itemBuilder: (context, index) {
+                  final user = users[index];
+                  return ListTile(
+                    title: Text(user.name ?? 'Unnamed'),
+                    subtitle: Text(user.email),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.info),
+                          onPressed: () =>
+                              context.push('/user/detail/${user.id}'),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () =>
+                              context.push('/user/edit/${user.id}'),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () async {
+                            if (user.id != null) {
+                              await ref
+                                  .read(userNotifierProvider.notifier)
+                                  .deleteUser(user.id!);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+}
+
+
+There are some error in my project.
+Help me refactoring my project to use flutter_hooks + stream.
+please give me clean, perfect , complete and runnable souce code.
+I don't need any file.

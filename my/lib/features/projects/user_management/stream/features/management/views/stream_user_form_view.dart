@@ -1,80 +1,81 @@
+// lib/features/user_management/views/user_form_view.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:my/features/projects/user_management/stream/features/data/models/stream_user_model.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-import '../providers/stream_user_provider.dart';
+import '../../data/models/stream_user_model.dart';
+import '../dao/stream_user_dao.dart';
 
-class UserFormPageStream extends HookConsumerWidget {
+class UserFormViewStream extends HookWidget {
   final int? userId;
-  const UserFormPageStream({super.key, this.userId});
+  const UserFormViewStream({super.key, this.userId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isEdit = userId != null;
-    final nameCtrl = useTextEditingController();
-    final emailCtrl = useTextEditingController();
-    final passCtrl = useTextEditingController();
-    final notifier = ref.read(userNotifierProvider.notifier);
+  Widget build(BuildContext context) {
+    final nameController = useTextEditingController();
+    final emailController = useTextEditingController();
+    final isLoading = useState(false);
+    final isEditing = userId != null;
+
+    useEffect(() {
+      if (isEditing) {
+        UserDaoStream().getUserById(userId!).then((user) {
+          if (user != null) {
+            nameController.text = user.name ?? '';
+            emailController.text = user.email;
+          }
+        });
+      }
+      return null;
+    }, [userId]);
+
+    Future<void> handleSubmit() async {
+      isLoading.value = true;
+      final name = nameController.text;
+      final email = emailController.text;
+
+      final user = UserModelStream(
+        id: userId,
+        name: name,
+        email: email,
+        password: '',
+        updatedAt: DateTime.now(),
+        createdAt: isEditing ? null : DateTime.now(),
+      );
+
+      if (isEditing) {
+        await UserDaoStream().updateUser(user);
+      } else {
+        await UserDaoStream().insertUser(user);
+      }
+
+      isLoading.value = false;
+      if (context.mounted) context.pop();
+    }
 
     return Scaffold(
-      appBar: AppBar(title: Text(isEdit ? 'Edit User' : 'Add User')),
-      body: FutureBuilder<UserModelStream?>(
-        future: isEdit ? notifier.getUser(userId!) : Future.value(null),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final user = snapshot.data;
-          if (user != null) {
-            nameCtrl.text = user.name ?? '';
-            emailCtrl.text = user.email;
-            passCtrl.text = user.password;
-          }
-
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                TextField(
-                  controller: emailCtrl,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                TextField(
-                  controller: passCtrl,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    final model = UserModelStream(
-                      id: userId,
-                      name: nameCtrl.text.trim(),
-                      email: emailCtrl.text.trim(),
-                      password: passCtrl.text.trim(),
-                    );
-
-                    if (isEdit) {
-                      await notifier.updateUser(model);
-                    } else {
-                      await notifier.insertUser(model);
-                    }
-
-                    if (context.mounted) context.pop();
-                  },
-                  child: Text(isEdit ? 'Update' : 'Add'),
-                ),
-              ],
+      appBar: AppBar(title: Text(isEditing ? 'Edit User' : 'Add User')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Name'),
             ),
-          );
-        },
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: isLoading.value ? null : handleSubmit,
+              child: Text(isEditing ? 'Update' : 'Create'),
+            ),
+          ],
+        ),
       ),
     );
   }
