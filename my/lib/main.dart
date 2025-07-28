@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'core/initialize/init.dart';
 import 'core/routes/app_router.dart';
 import 'package:my/features/projects/intl_demo/generated/l10n.dart';
@@ -16,8 +17,11 @@ class MyApp extends ConsumerWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // final _router = useMemoized(() => createAppRouter());
+
     final locale = ref.watch(localeProvider);
     return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
       title: 'White Toggle Button Demo',
       locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,

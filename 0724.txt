@@ -1,0 +1,167 @@
+models/grouped_device_model.dart
+import 'device_model.dart';
+
+class GroupedDeviceModel {
+  final String groupName;
+  final List<DeviceModel> devices;
+
+  GroupedDeviceModel({required this.groupName, required this.devices});
+}
+
+ models/group_model.dart
+class GroupModel {
+  final int id;
+  final String groupName;
+
+  GroupModel({required this.id, required this.groupName});
+
+  factory GroupModel.fromMap(Map<String, dynamic> map) {
+    return GroupModel(id: map['id'], groupName: map['group_name']);
+  }
+}
+
+models/device_model.dart
+class DeviceModel {
+  final int id;
+  final String name;
+  final String mac;
+  final String ip;
+  final int groupId;
+  final String? lastConnectTime;
+
+  DeviceModel({
+    required this.id,
+    required this.name,
+    required this.mac,
+    required this.ip,
+    required this.groupId,
+    this.lastConnectTime,
+  });
+
+  factory DeviceModel.fromMap(Map<String, dynamic> map) {
+    return DeviceModel(
+      id: map['id'],
+      name: map['name'],
+      mac: map['mac'],
+      ip: map['ip'],
+      groupId: map['group_id'],
+      lastConnectTime: map['last_connect_time'],
+    );
+  }
+}
+
+我希望返回主页面时能自动刷新，不用更新时每次都手动loadDevice。在device_detail_page.dart点击操作按钮时，去到设备操作画面。设备操作画面可以更新设备的各种状态，以后可能还会有新的数据库字段增加。
+我的代码。
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import '../core/db/db_helper.dart';
+import '../model/device_model.dart';
+
+class DeviceState {
+  final List<DeviceModel> ungrouped;
+  final List<DeviceModel> grouped;
+
+  DeviceState({required this.ungrouped, required this.grouped});
+}
+
+class DeviceNotifier extends StateNotifier<AsyncValue<DeviceState>> {
+  DeviceNotifier() : super(const AsyncLoading()) {
+    loadDevices();
+  }
+
+  Future<void> loadDevices() async {
+    try {
+      final rawUngrouped = await DBHelper.instance.fetchUngroupedDevices();
+      final rawGrouped = await DBHelper.instance.fetchGroupedDevices();
+      final ungroupedList = rawUngrouped.map((e) => DeviceModel.fromMap(e)).toList();
+      final groupedList = rawGrouped.map((e) => DeviceModel.fromMap(e)).toList();
+      state = AsyncData(DeviceState(ungrouped: ungroupedList, grouped: groupedList));
+    } catch (e) {
+      state = AsyncError(e, StackTrace.current);
+    }
+  }
+
+  // ✅ 封装的更新设备方法
+  Future<void> updateDevice(int id, Map<String, dynamic> data) async {
+    final db = await DBHelper.instance.database;
+    await db.update('devices', data, where: 'id = ?', whereArgs: [id]);
+    await loadDevices(); // 自动刷新
+  }
+}
+
+final deviceProvider = StateNotifierProvider<DeviceNotifier, AsyncValue<DeviceState>>((ref) {
+  return DeviceNotifier();
+});
+
+上面的代码如果改用stream的写法。应该怎么。请给我完美英文版可运行的代码。我不需要任何文件。
+
+我想将数据库相关的操作全部放在DBHelper文件中去操作。DBHelper中查询好后直接封装为模型返回。请帮我重构代码。给我完美可运行的英文版代码。我不需要任何文件。
+
+/// 完整重构：主页面展示device表中所有字段，外加支持group表中groupname展示。
+请分析我们之前的所有对话，按照我的要求重构项目。
+ Flutter MVVM 路由+页面结构
+/// ✅ 使用 Riverpod + GoRouter + Sqflite
+/// ✅ 展示 DeviceState 中 ungrouped 和 grouped（带 groupname）
+/// ✅ 点击 ungrouped 跳转到 DeviceDetailPage
+/// ✅ 点击 grouped 先跳转 DeviceListPage，再跳转 DeviceDetailPage
+
+
+主界面展示state.ungrouped。state.grouped
+的数据。主界面点击ungrouped直接去到device_detail_page.dart
+主页面点击state.grouped的数据，先去到view/device_list_page.dart，
+然后再view/device_list_page.dart里点击数据后去到device_detail_page.dart。
+请用gorouter重写。给我完美可以运行的代码，我不需要任何文件。
+
+假设我的home页面初始化时从数据库加载如下1，2数据：
+1.List<UngroupedModel  ungroupedModel  >存放未分组的设备，
+2.List<groupedModel  groupedModel  >存放已分组的设备，
+
+3.点击1后，去到设备展示页面。
+4.点击2后，去到分组设备详情页面，分组设备详情页面点击设备后也去到展示页面。
+5.当1，2跳转时，都将ungroupedModel  ，groupedModel  转换为DeviceModel供设备展示页面使用。
+
+
+要件要求如下：
+✅ 完整 DeviceModel、GroupModel 类定义
+
+✅ SQLite 数据库初始化与查询封装
+
+✅ ViewModel 使用 StateNotifier 管理 grouped / ungrouped 状态
+
+✅ Home → 分组列表 → 分组详情 → 设备详情导航与状态更新逻辑
+
+✅ 每个页面配套的 UI 文件（如 HomePage、GroupedDevicesPage、DeviceDetailPage）
+
+✅ flutter_hooks
+
+✅ hooks_riverpod
+
+✅ StateNotifier & StateNotifierProvider
+
+✅ StreamProvider（用于监听数据库变化）
+
+✅ SQLite 数据读取（grouped/ungrouped 模型）
+
+
+请问用上面的状态管理技术应该怎么控制状态，才能不管是详情页面更新了ungroupedModel  和groupedModel  传过来的数据。回到主页面时，都能读到最新设备的状态，重新加载新的信息到展示到页面上。
+
+
+sql如下：
+ungroupedModel = select ＊　from devices where groupid is null;
+groupedModel  = select * from devices  inner join groups where device.groupid =  group.id
+
+  static Future<List<DeviceModel>> getUngroupedDevices() async {
+    final result = await _db!.query('devices', where: 'groupId IS NULL');
+    return result.map(DeviceModel.fromMap).toList();
+  }
+
+  static Future<List<GroupedDeviceModel>> getGroupedDevices() async {
+    final result = await _db!.rawQuery('''
+      SELECT devices.* ， groups.name FROM devices 
+      INNER JOIN groups ON groups.id = devices.groupId
+    ''');
+    return result.map(DeviceModel.fromMap).toList();
+  }
+
+请用上面的提到的五个概念是 Flutter 中状态管理的核心技术栈组合。给出MVVM英文版完美可运行的一套模板代码。我不需要任何文件。
+
+dummy数据请在dbhelper.dart.建表时插入。

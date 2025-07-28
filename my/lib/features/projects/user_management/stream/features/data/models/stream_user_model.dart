@@ -1,5 +1,5 @@
 /// models/device_model.dart
-class UserModel {
+class UserModelStream {
   final int? id;
   final String? name;
   final String email;
@@ -7,7 +7,7 @@ class UserModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
-  UserModel({
+  UserModelStream({
     this.id,
     this.name,
     required this.email,
@@ -28,9 +28,9 @@ class UserModel {
     };
   }
 
-  /// 从数据库取出的 map 还原成 UserModel
-  factory UserModel.fromMap(Map<String, dynamic> map) {
-    return UserModel(
+  /// 从数据库取出的 map 还原成 UserModelStream
+  factory UserModelStream.fromMap(Map<String, dynamic> map) {
+    return UserModelStream(
       id: map['id'] as int?,
       name: map['name'] as String?,
       email: map['email'] ?? '',
@@ -45,11 +45,11 @@ class UserModel {
   /// JSON序列化
   Map<String, dynamic> toJson() => toMap();
 
-  factory UserModel.fromJson(Map<String, dynamic> json) =>
-      UserModel.fromMap(json);
+  factory UserModelStream.fromJson(Map<String, dynamic> json) =>
+      UserModelStream.fromMap(json);
 
   /// 更新部分字段
-  UserModel copyWith({
+  UserModelStream copyWith({
     int? id,
     String? name,
     String? email,
@@ -57,7 +57,7 @@ class UserModel {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
-    return UserModel(
+    return UserModelStream(
       id: id ?? this.id,
       name: name ?? this.name,
       email: email ?? this.email,
@@ -69,6 +69,6 @@ class UserModel {
 
   @override
   String toString() {
-    return 'UserModel(id: $id, name: $name, email: $email, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'UserModelStream(id: $id, name: $name, email: $email, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }

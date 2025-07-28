@@ -1,12 +1,12 @@
-import '../models/user_model.dart';
+import '../models/stream_user_model.dart';
 
 /// dtos/user_dto_stream.dart
-class UserDto {
+class UserDtoStream {
   final String name;
   final String email;
   final String password;
 
-  UserDto({
+  UserDtoStream({
     required this.name,
     required this.email,
     required this.password,
@@ -18,14 +18,14 @@ class UserDto {
         'password': password,
       };
 
-  factory UserDto.fromJson(Map<String, dynamic> json) => UserDto(
+  factory UserDtoStream.fromJson(Map<String, dynamic> json) => UserDtoStream(
         name: json['name'] ?? '',
         email: json['email'] ?? '',
         password: json['password'] ?? '',
       );
 
-  /// 转换为数据库使用的 UserModel
-  UserModel toModel() => UserModel(
+  /// 转换为数据库使用的 UserModelStream
+  UserModelStream toModel() => UserModelStream(
         name: name,
         email: email,
         password: password,

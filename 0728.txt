@@ -1,0 +1,2052 @@
+
+My error souce code:
+1.
+my/lib/data/db/db_helper.dart
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:my/features/projects/user_management/hooks_riverpod/features/data/db/auth_table.dart';
+import 'package:my/features/projects/user_management/stream/features/data/models/device_model.dart';
+import 'package:my/features/projects/user_management/stream/features/data/models/group_model.dart';
+import 'package:path/path.dart';
+import 'package:sqflite_common/sqflite.dart';
+
+class DbHelper {
+  static const _dbWebName = 'web_database.db';
+  static const _dbAppName = 'app_database.db';
+  static const _dbVersion = 1;
+  static Database? _db;
+
+  static final DbHelper instance = DbHelper._internal();
+  factory DbHelper() => instance;
+  DbHelper._internal();
+
+  final StreamController<void> _changeController = StreamController.broadcast();
+  Stream<void> get onChange => _changeController.stream;
+
+  Future<Database> get database async {
+    if (_db != null) return _db!;
+    _db = await _initDatabase();
+    return _db!;
+  }
+
+  Future<Database> _initDatabase() async {
+    final factory = databaseFactory;
+    final path =
+        kIsWeb ? _dbWebName : join(await getDatabasesPath(), _dbAppName);
+
+    return await factory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: _dbVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      ),
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    // auth table
+    await AuthTable.createTable(db);
+
+    // group table
+    await db.execute('''
+      CREATE TABLE groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        groupName TEXT NOT NULL,
+        group_order INTEGER DEFAULT 0
+      );
+    ''');
+
+    // device table
+    await db.execute('''
+      CREATE TABLE devices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        mac TEXT NOT NULL,
+        ip TEXT NOT NULL,
+        group_id INTEGER,
+        device_order INTEGER DEFAULT 0,
+        lastConnectTime TEXT,
+        FOREIGN KEY (group_id) REFERENCES groups(id)
+      );
+    ''');
+
+    // Dummy data
+    await db.insert('groups', {'groupName': 'Office'});
+    await db.insert('groups', {'groupName': 'Home'});
+    await db.insert('devices', {
+      'name': 'Printer',
+      'mac': 'AA:BB:CC:DD:EE:01',
+      'ip': '192.168.0.10',
+      'group_id': null,
+      'lastConnectTime': '2025-07-24 10:00:00',
+    });
+    await db.insert('devices', {
+      'name': 'Laptop',
+      'mac': 'AA:BB:CC:DD:EE:02',
+      'ip': '192.168.0.11',
+      'group_id': 1,
+      'lastConnectTime': '2025-07-24 09:30:00',
+    });
+    await db.insert('devices', {
+      'name': 'Smartphone',
+      'mac': 'AA:BB:CC:DD:EE:03',
+      'ip': '192.168.0.12',
+      'group_id': 2,
+      'lastConnectTime': '2025-07-23 20:00:00',
+    });
+  }
+
+  static Future<void> _onUpgrade(
+      Database db, int oldVersion, int newVersion) async {
+    // TODO: Add upgrade logic
+  }
+// 获取所有设备（用于Stream）
+  Stream<List<DeviceModel>> watchAllDevices() async* {
+    final db = await database;
+    yield* Stream.periodic(Duration(milliseconds: 500), (_) async {
+      final maps = await db.query('device', orderBy: 'order ASC');
+      return maps.map((e) => DeviceModel.fromMap(e)).toList();
+    }).asyncMap((event) async => await event);
+  }
+
+// 移动设备到某组并更新order
+  Future<void> moveDeviceToGroup(
+      int deviceId, int groupId, int newOrder) async {
+    final db = await database;
+    await db.update(
+      'device',
+      {'group_id': groupId, 'order': newOrder},
+      where: 'id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+// 设置设备为未分组
+  Future<void> ungroupDevice(int deviceId) async {
+    final db = await database;
+    await db.update(
+      'device',
+      {'group_id': null, 'order': 0},
+      where: 'id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  // --- Device & Group Operations ---
+
+  Future<List<GroupModel>> getAllGroups() async {
+    final db = await database;
+    final result = await db.query('groups', orderBy: 'group_order ASC');
+    return result.map((e) => GroupModel.fromMap(e)).toList();
+  }
+
+  Future<List<DeviceModel>> getAllDevices() async {
+    final db = await database;
+    final result = await db.query('devices', orderBy: 'device_order ASC');
+    return result.map((e) => DeviceModel.fromMap(e)).toList();
+  }
+
+  Future<List<DeviceModel>> getUngroupedDevices() async {
+    final db = await database;
+    final result = await db.query('devices', where: 'group_id IS NULL');
+    return result.map((e) => DeviceModel.fromMap(e)).toList();
+  }
+
+  Future<List<DeviceModel>> getDevicesByGroupId(int groupId) async {
+    final db = await database;
+    final result =
+        await db.query('devices', where: 'group_id = ?', whereArgs: [groupId]);
+    return result.map((e) => DeviceModel.fromMap(e)).toList();
+  }
+
+  Future<GroupModel?> getGroupById(int id) async {
+    final db = await database;
+    final result = await db.query('groups', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) return GroupModel.fromMap(result.first);
+    return null;
+  }
+
+  Future<DeviceModel?> getDeviceById(int id) async {
+    final db = await database;
+    final result = await db.query('devices', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) return DeviceModel.fromMap(result.first);
+    return null;
+  }
+
+  Future<void> updateDevice(DeviceModel device) async {
+    final db = await database;
+    await db.update('devices', device.toMap(),
+        where: 'id = ?', whereArgs: [device.id]);
+    _broadcastChange();
+  }
+
+  Future<void> moveDevicesToGroup(
+      List<DeviceModel> devices, int? groupId) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final d in devices) {
+      batch.update(
+          'devices',
+          {
+            'group_id': groupId,
+            'device_order': d.order,
+          },
+          where: 'id = ?',
+          whereArgs: [d.id]);
+    }
+    await batch.commit(noResult: true);
+    _broadcastChange();
+  }
+
+  Future<void> deleteGroupAndUpdateDevices(int groupId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('groups', where: 'id = ?', whereArgs: [groupId]);
+      await txn.update('devices', {'group_id': null, 'device_order': 0},
+          where: 'group_id = ?', whereArgs: [groupId]);
+    });
+    _broadcastChange();
+  }
+
+  Future<void> updateDeviceGroupAndOrder(int deviceId,
+      {int? groupId, int order = 0}) async {
+    final dbClient = await db;
+    await dbClient.update(
+      'devices',
+      {
+        'groupId': groupId,
+        'order': order,
+      },
+      where: 'id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  Future<void> reorderDevices(List<DeviceModel> devices) async {
+    final dbClient = await db;
+    final batch = dbClient.batch();
+    for (int i = 0; i < devices.length; i++) {
+      batch.update('devices', {'order': i},
+          where: 'id = ?', whereArgs: [devices[i].id]);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<int> createGroup(String groupName, {int order = 0}) async {
+    final dbClient = await db;
+    return await dbClient.insert('groups', {
+      'groupName': groupName,
+      'order': order,
+    });
+  }
+
+  Future<void> exportDevicesToCSV(List<DeviceModel> devices) async {
+    final rows = [
+      ['ID', 'Name', 'GroupID'],
+      ...devices
+          .map((d) => [d.id.toString(), d.name, d.groupId?.toString() ?? '']),
+    ];
+    final csvString = const ListToCsvConverter().convert(rows);
+
+    final directory = await getApplicationDocumentsDirectory();
+    final path = '${directory.path}/devices.csv';
+    final file = File(path);
+    await file.writeAsString(csvString);
+    print("CSV exported to $path");
+  }
+
+  Future<void> close() async {
+    await _changeController.close();
+    await _db?.close();
+  }
+
+  void _broadcastChange() {
+    if (!_changeController.isClosed) {
+      _changeController.add(null);
+    }
+  }
+}
+
+
+2.
+features/projects/user_management/stream/core/routes/flutter_hooks_routes.dart
+
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:my/features/projects/user_management/user_management_view.dart';
+import '../../features/home/routes/home_routes.dart';
+import '../../features/hooks_stream_view.dart';
+
+final List<GoRoute> flutterHooks = [
+  GoRoute(
+    path: '/stream',
+    builder: (context, state) => const HooksStreamView(),
+  ),
+  ...homeStreamRoutes,
+  // ...managementStreamRoutes,
+];
+
+features/projects/user_management/stream/features/data/models/device_model.dart
+class DeviceModel {
+  final int id;
+  final String name;
+  final String macAddress;
+  final int? groupId;
+  final int? order;
+
+  DeviceModel({
+    required this.id,
+    required this.name,
+    required this.macAddress,
+    this.groupId,
+    this.order,
+  });
+
+  factory DeviceModel.fromMap(Map<String, dynamic> map) {
+    return DeviceModel(
+      id: map['id'],
+      name: map['name'],
+      macAddress: map['macAddress'],
+      groupId: map['groupId'],
+      order: map['order'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'macAddress': macAddress,
+      'groupId': groupId,
+      'order': order,
+    };
+  }
+
+  DeviceModel copyWith({
+    int? id,
+    String? name,
+    String? macAddress,
+    int? groupId,
+    int? order,
+  }) {
+    return DeviceModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      macAddress: macAddress ?? this.macAddress,
+      groupId: groupId ?? this.groupId,
+      order: order ?? this.order,
+    );
+  }
+}
+
+3.features/projects/user_management/stream/features/data/models/group_model.dart
+
+
+class GroupModel {
+  final int id;
+  final String name;
+
+  GroupModel({required this.id, required this.name});
+
+  factory GroupModel.fromMap(Map<String, dynamic> map) {
+    return GroupModel(
+      id: map['id'],
+      name: map['name'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+    };
+  }
+}
+
+4.
+lib/features/projects/user_management/stream/features/data/models/grouped_device_model.dart
+
+import 'device_model.dart';
+
+class GroupedDeviceModel {
+  final String groupName;
+  final List<DeviceModel> devices;
+
+  GroupedDeviceModel({
+    required this.groupName,
+    required this.devices,
+  });
+}
+
+lib/features/projects/user_management/stream/features/data/providers/device_stream_provider.dart
+import 'dart:async';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/data/db/db_helper.dart';
+import '../state/device_state.dart';
+
+class DeviceNotifier extends StateNotifier<AsyncValue<DeviceState>> {
+  final DbHelper _dbHelper;
+  late final StreamSubscription _subscription;
+
+  DeviceNotifier(this._dbHelper) : super(const AsyncLoading()) {
+    _subscription = _dbHelper.onChange.listen((_) {
+      _reload();
+    });
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    try {
+      final allDevices = await _dbHelper.getAllDevices();
+      final allGroups = await _dbHelper.getAllGroups();
+      state = AsyncData(DeviceState(
+        allDevices: allDevices,
+        cachedGroups: allGroups,
+      ));
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  final allDevicesStreamProvider = StreamProvider<List<DeviceModel>>((ref) {
+    return DBHelper().watchAllDevices(); // use query with join and order
+  });
+
+  final groupedDevicesProvider = Provider<List<GroupedDeviceModel>>((ref) {
+    final allDevices = ref.watch(allDevicesStreamProvider).value ?? [];
+    final Map<int?, List<DeviceModel>> grouped = {};
+
+    for (final device in allDevices) {
+      grouped.putIfAbsent(device.groupId, () => []).add(device);
+    }
+
+    final List<GroupedDeviceModel> result = [];
+
+    grouped.forEach((groupId, devices) {
+      final groupName = ref.read(groupNameByIdProvider(groupId));
+      result.add(GroupedDeviceModel(groupName: groupName, devices: devices));
+    });
+
+    return result;
+  });
+
+  final groupNameByIdProvider = Provider.family<String, int?>((ref, groupId) {
+    final allGroups = ref.watch(allGroupsProvider).value ?? [];
+    if (groupId == null) return '未分组';
+    return allGroups
+        .firstWhere((g) => g.id == groupId,
+            orElse: () => GroupModel(id: -1, groupName: '未知分组', order: 0))
+        .groupName;
+  });
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
+5.
+lib/features/projects/user_management/stream/features/data/state/device_state.dart
+
+import '../models/device_model.dart';
+import '../models/group_model.dart';
+
+class DeviceState {
+  final List<DeviceModel> allDevices;
+  final List<GroupModel> cachedGroups;
+
+  DeviceState({required this.allDevices, required this.cachedGroups});
+
+  List<DeviceModel> get ungrouped =>
+      allDevices.where((e) => e.groupId == null).toList();
+
+  Map<GroupModel, List<DeviceModel>> get grouped {
+    final Map<int, GroupModel> groupMap = {
+      for (var g in cachedGroups) g.id: g,
+    };
+
+    final Map<GroupModel, List<DeviceModel>> result = {};
+    for (final d in allDevices) {
+      if (d.groupId != null) {
+        final group = groupMap[d.groupId];
+        if (group != null) {
+          result.putIfAbsent(group, () => []).add(d);
+        }
+      }
+    }
+    return result;
+  }
+}
+
+6.
+lib/features/projects/user_management/stream/features/home/routes/home_routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../views/error_page.dart';
+import '../views/home_view_stream.dart';
+import '../views/grouped_devices_page.dart';
+import '../views/device_detail_page.dart';
+
+final List<GoRoute> homeStreamRoutes = [
+  GoRoute(
+    path: '/home_stream',
+    name: 'home_stream',
+    builder: (context, state) => const HomeViewStream(),
+    routes: [
+      /// /home_stream/group/1?groupName=GroupA
+      GoRoute(
+        path: 'group/:groupId',
+        name: 'grouped_devices',
+        builder: (context, state) {
+          final groupId = int.tryParse(state.pathParameters['groupId'] ?? '');
+          if (groupId == null) {
+            return const ErrorPage('Invalid group ID');
+          }
+          final groupName =
+              state.uri.queryParameters['groupName'] ?? 'Group Devices';
+          return GroupedDevicesPage(groupId: groupId, groupName: groupName);
+        },
+        routes: [
+          /// /home_stream/group/1/device/5
+          GoRoute(
+            path: 'device/:deviceId',
+            name: 'device_detail_from_group',
+            builder: (context, state) {
+              final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+              if (deviceId == null) {
+                return const ErrorPage('Invalid device ID');
+              }
+              return DeviceDetailPage(deviceId: deviceId);
+            },
+          ),
+        ],
+      ),
+
+      /// /home_stream/device/5
+      GoRoute(
+        path: 'device/:deviceId',
+        name: 'device_detail',
+        builder: (context, state) {
+          final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+          if (deviceId == null) {
+            return const ErrorPage('Invalid device ID');
+          }
+          return DeviceDetailPage(deviceId: deviceId);
+        },
+      ),
+    ],
+  ),
+];
+
+7.
+
+lib/features/projects/user_management/stream/features/home/views/home_view_stream.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+
+import '../viewmodels/device_viewmodel.dart';
+
+/// Home Page showing ungrouped and grouped devices
+
+class HomeViewStream extends HookWidget {
+  const HomeViewStream({Key? key}) : super(key: key);
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    final deviceListAsync = ref.watch(deviceStreamProvider);
+
+    return deviceListAsync.when(
+      data: (devices) {
+        final ungrouped = devices.where((d) => d.groupId == null).toList();
+        final groupedMap = <int, List<DeviceModel>>{};
+
+        for (var d in devices) {
+          if (d.groupId != null) {
+            groupedMap.putIfAbsent(d.groupId!, () => []).add(d);
+          }
+        }
+
+        return ListView(
+          children: [
+            Text('未分组'),
+            ...ungrouped.map((d) => ListTile(
+              title: Text(d.name),
+              onTap: () {
+                context.push('/device/${d.id}');
+              },
+            )),
+            Text('已分组'),
+            ...groupedMap.entries.map((entry) {
+              final groupId = entry.key;
+              final deviceList = entry.value;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FutureBuilder(
+                    future: DBHelper().getGroupNameById(groupId),
+                    builder: (ctx, snapshot) {
+                      return Text(snapshot.data ?? 'Group $groupId');
+                    },
+                  ),
+                  ...deviceList.map((d) => ListTile(
+                    title: Text(d.name),
+                    onTap: () {
+                      context.push('/device/${d.id}');
+                    },
+                  )),
+                ],
+              );
+            }),
+          ],
+            ReorderableListView(
+              onReorder: (oldIndex, newIndex) async {
+                final newList = [...devices];
+                if (newIndex > oldIndex) newIndex -= 1;
+                final moved = newList.removeAt(oldIndex);
+                newList.insert(newIndex, moved);
+                await DBHelper().reorderDevices(newList);
+              },
+              children: [
+                for (final device in devices)
+                  ListTile(
+                    key: ValueKey(device.id),
+                    title: Text(device.name),
+                    trailing: Icon(Icons.drag_handle),
+                  ),
+              ],
+            );
+,onAccept: (DeviceModel draggedDevice) async {
+          final newGroupId = await DBHelper().createGroup('新建组');
+          await DBHelper().updateDeviceGroupAndOrder(draggedDevice.id, groupId: newGroupId);
+        },
+            ElevatedButton(
+              onPressed: () async {
+                final devices = ref.read(allDevicesStreamProvider).value ?? [];
+                await DBHelper().exportDevicesToCSV(devices);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导出成功')));
+              },
+              child: Text("导出所有设备"),
+            );
+,
+        );
+      },
+      error: (err, stack) => Text('Error: $err'),
+      loading: () => CircularProgressIndicator(),
+    );
+  }
+
+}
+}
+
+8.
+
+lib/features/projects/user_management/stream/features/home/views/grouped_devices_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/models/device_model.dart';
+
+class GroupedDeviceDetailPage extends HookConsumerWidget {
+  final String groupName;
+  final List<DeviceModel> devices;
+
+  const GroupedDeviceDetailPage({
+    super.key,
+    required this.groupName,
+    required this.devices,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = useTextEditingController();
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Group: $groupName')),
+      body: ListView.builder(
+        itemCount: devices.length,
+        itemBuilder: (context, index) {
+          final device = devices[index];
+          return ListTile(
+            title: Text(device.name),
+            subtitle: Text('MAC: ${device.macAddress}'),
+            trailing: IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () async {
+                await ref
+                    .read(deviceViewModelProvider.notifier)
+                    .ungroupDevice(device);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+9.
+
+lib/features/projects/user_management/stream/features/home/views/group_sort_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/data/db/db_helper.dart';
+
+import '../../data/models/device_model.dart';
+import '../../data/models/group_model.dart';
+
+class GroupSortPage extends HookConsumerWidget {
+  final GroupModel group;
+  const GroupSortPage({super.key, required this.group});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final devices = useState<List<DeviceModel>>([]);
+
+    useEffect(() {
+      Future(() async {
+        devices.value = await db.getDevicesByGroup(group.id);
+      });
+      return null;
+    }, []);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('${group.groupName}排序')),
+      body: ReorderableListView(
+        onReorder: (oldIndex, newIndex) {
+          if (newIndex > oldIndex) newIndex -= 1;
+          final item = devices.value.removeAt(oldIndex);
+          devices.value.insert(newIndex, item);
+        },
+        children: [
+          for (int i = 0; i < devices.value.length; i++)
+            ListTile(
+              key: ValueKey(devices.value[i].id),
+              title: Text(devices.value[i].name),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.save),
+        onPressed: () async {
+          await DBHelper().updateDeviceOrder(devices.value);
+          context.pop(); // 返回主页自动刷新
+        },
+      ),
+    );
+  }
+}
+
+10.
+
+
+lib/features/projects/user_management/stream/features/home/views/device_group_assignment_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/models/device_model.dart';
+
+class AssignDeviceToGroupPage extends HookConsumerWidget {
+  final DeviceModel device;
+
+  ProviderListenable groupViewModelProvider;
+
+  const AssignDeviceToGroupPage({super.key, required this.device});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groups = ref.watch(groupViewModelProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Assign Group')),
+      body: ListView.builder(
+        itemCount: groups.length,
+        itemBuilder: (context, index) {
+          final group = groups[index];
+          return ListTile(
+            title: Text(group.groupName),
+            onTap: () async {
+              await ref
+                  .read(deviceViewModelProvider.notifier)
+                  .groupDevice(device, group.id);
+              Navigator.pop(context);
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+11.
+
+lib/features/projects/user_management/stream/features/home/views/device_detail_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
+
+class DeviceDetailPage extends HookWidget {
+  final int deviceId;
+
+  const DeviceDetailPage({Key? key, required this.deviceId}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final dbHelper = useProvider(dbHelperProvider);
+    final deviceFuture =
+        useMemoized(() => dbHelper.getDeviceById(deviceId), [deviceId]);
+    final deviceAsync = useFuture(deviceFuture);
+
+    // Local state for editing device name and ip as example
+    final nameController = useTextEditingController();
+    final ipController = useTextEditingController();
+
+    // To access ViewModel for updating
+    final deviceNotifier = useProvider(deviceNotifierProvider.notifier);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Device Detail')),
+      body: deviceAsync.connectionState == ConnectionState.waiting
+          ? const Center(child: CircularProgressIndicator())
+          : deviceAsync.hasError || deviceAsync.data == null
+              ? Center(child: Text('Device not found'))
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('ID: ${deviceAsync.data!.id}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: nameController
+                          ..text = deviceAsync.data!.name,
+                        decoration: const InputDecoration(labelText: 'Name'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: ipController..text = deviceAsync.data!.ip,
+                        decoration:
+                            const InputDecoration(labelText: 'IP Address'),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('MAC: ${deviceAsync.data!.mac}'),
+                      Text(
+                          'Last Connect Time: ${deviceAsync.data!.lastConnectTime ?? 'N/A'}'),
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () async {
+                              await DBHelper().ungroupDevice(device.id!);
+                              context.pop(); // 返回主界面自动刷新
+                            },
+                            child: Text("移出分组"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final newName = nameController.text.trim();
+                              final newIp = ipController.text.trim();
+
+                              if (newName.isEmpty || newIp.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('Name and IP cannot be empty')),
+                                );
+                                return;
+                              }
+
+                              await deviceNotifier.updateDevice(deviceId, {
+                                'name': newName,
+                                'ip': newIp,
+                                'lastConnectTime':
+                                    DateTime.now().toIso8601String(),
+                              });
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Device updated')),
+                              );
+
+                              // Pop back to previous page (auto-refresh due to stream)
+                              context.pop();
+                            },
+                            child: const Text('Save'),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+12.
+
+	lib/features/projects/user_management/stream/features/home/routes/home_routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../views/error_page.dart';
+import '../views/home_view_stream.dart';
+import '../views/grouped_devices_page.dart';
+import '../views/device_detail_page.dart';
+
+final List<GoRoute> homeStreamRoutes = [
+  GoRoute(
+    path: '/home_stream',
+    name: 'home_stream',
+    builder: (context, state) => const HomeViewStream(),
+    routes: [
+      /// /home_stream/group/1?groupName=GroupA
+      GoRoute(
+        path: 'group/:groupId',
+        name: 'grouped_devices',
+        builder: (context, state) {
+          final groupId = int.tryParse(state.pathParameters['groupId'] ?? '');
+          if (groupId == null) {
+            return const ErrorPage('Invalid group ID');
+          }
+          final groupName =
+              state.uri.queryParameters['groupName'] ?? 'Group Devices';
+          return GroupedDevicesPage(groupId: groupId, groupName: groupName);
+        },
+        routes: [
+          /// /home_stream/group/1/device/5
+          GoRoute(
+            path: 'device/:deviceId',
+            name: 'device_detail_from_group',
+            builder: (context, state) {
+              final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+              if (deviceId == null) {
+                return const ErrorPage('Invalid device ID');
+              }
+              return DeviceDetailPage(deviceId: deviceId);
+            },
+          ),
+        ],
+      ),
+
+      /// /home_stream/device/5
+      GoRoute(
+        path: 'device/:deviceId',
+        name: 'device_detail',
+        builder: (context, state) {
+          final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+          if (deviceId == null) {
+            return const ErrorPage('Invalid device ID');
+          }
+          return DeviceDetailPage(deviceId: deviceId);
+        },
+      ),
+    ],
+  ),
+];
+
+13.
+
+lib/features/projects/user_management/stream/features/hooks_stream_view.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/core/widgets/selectable_button_group.dart';
+
+import 'package:my/core/widgets/learning_viewmodel.dart';
+
+class HooksStreamView extends ConsumerWidget {
+  const HooksStreamView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedIndex = ref.watch(selectedIndexProvider);
+
+    final buttonData = [
+      ('home_stream', Icons.people, '/home_stream'),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('这是 HooksStreamView 页面')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double maxWidth = constraints.maxWidth;
+
+            // 决定每个按钮的宽度
+            double itemWidth;
+            if (maxWidth > 1000) {
+              itemWidth = (maxWidth - 48) / 4; // 网页：4列
+            } else if (maxWidth > 600) {
+              itemWidth = (maxWidth - 36) / 3; // 平板：3列
+            } else {
+              itemWidth = (maxWidth - 24) / 2; // 手机：2列
+            }
+
+            return SingleChildScrollView(
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(buttonData.length, (index) {
+                  final (label, icon, route) = buttonData[index];
+
+                  return SizedBox(
+                    width: itemWidth,
+                    child: SelectableOutlinedButton(
+                      isSelected: selectedIndex == index,
+                      icon: icon,
+                      label: label,
+                      onPressed: () {
+                        ref.read(selectedIndexProvider.notifier).state = index;
+                        context.push(route);
+                      },
+                      selectedBackgroundColor: Colors.black,
+                      unselectedBackgroundColor: Colors.grey.shade100,
+                      selectedTextColor: Colors.yellow,
+                      unselectedTextColor: Colors.black87,
+                      selectedIconColor: Colors.yellow,
+                      unselectedIconColor: Colors.black45,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      borderSide: const BorderSide(color: Colors.black),
+                    ),
+                  );
+                }),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+I don’ｔ　need any functional like bellow:
+My code reports an error. Please help me refactor. Generate perfect and runnable code directly.
+Requires Flutter_hooks+stream.
+
+Don't be lazy
+Please give me perfect and runnable code after refactoring.
+Please give me clean,perfect ,complete and runnable English version code directly.I don't need ant file.
+Use you english model anwser me please.
+My error souce code:
+1.
+my/lib/data/db/db_helper.dart
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:my/features/projects/user_management/hooks_riverpod/features/data/db/auth_table.dart';
+import 'package:my/features/projects/user_management/stream/features/data/models/device_model.dart';
+import 'package:my/features/projects/user_management/stream/features/data/models/group_model.dart';
+import 'package:path/path.dart';
+import 'package:sqflite_common/sqflite.dart';
+
+class DbHelper {
+  static const _dbWebName = 'web_database.db';
+  static const _dbAppName = 'app_database.db';
+  static const _dbVersion = 1;
+  static Database? _db;
+
+  static final DbHelper instance = DbHelper._internal();
+  factory DbHelper() => instance;
+  DbHelper._internal();
+
+  final StreamController<void> _changeController = StreamController.broadcast();
+  Stream<void> get onChange => _changeController.stream;
+
+  Future<Database> get database async {
+    if (_db != null) return _db!;
+    _db = await _initDatabase();
+    return _db!;
+  }
+
+  Future<Database> _initDatabase() async {
+    final factory = databaseFactory;
+    final path =
+        kIsWeb ? _dbWebName : join(await getDatabasesPath(), _dbAppName);
+
+    return await factory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: _dbVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      ),
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    // auth table
+    await AuthTable.createTable(db);
+
+    // group table
+    await db.execute('''
+      CREATE TABLE groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        groupName TEXT NOT NULL,
+        group_order INTEGER DEFAULT 0
+      );
+    ''');
+
+    // device table
+    await db.execute('''
+      CREATE TABLE devices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        mac TEXT NOT NULL,
+        ip TEXT NOT NULL,
+        group_id INTEGER,
+        device_order INTEGER DEFAULT 0,
+        lastConnectTime TEXT,
+        FOREIGN KEY (group_id) REFERENCES groups(id)
+      );
+    ''');
+
+    // Dummy data
+    await db.insert('groups', {'groupName': 'Office'});
+    await db.insert('groups', {'groupName': 'Home'});
+    await db.insert('devices', {
+      'name': 'Printer',
+      'mac': 'AA:BB:CC:DD:EE:01',
+      'ip': '192.168.0.10',
+      'group_id': null,
+      'lastConnectTime': '2025-07-24 10:00:00',
+    });
+    await db.insert('devices', {
+      'name': 'Laptop',
+      'mac': 'AA:BB:CC:DD:EE:02',
+      'ip': '192.168.0.11',
+      'group_id': 1,
+      'lastConnectTime': '2025-07-24 09:30:00',
+    });
+    await db.insert('devices', {
+      'name': 'Smartphone',
+      'mac': 'AA:BB:CC:DD:EE:03',
+      'ip': '192.168.0.12',
+      'group_id': 2,
+      'lastConnectTime': '2025-07-23 20:00:00',
+    });
+  }
+
+  static Future<void> _onUpgrade(
+      Database db, int oldVersion, int newVersion) async {
+    // TODO: Add upgrade logic
+  }
+// 获取所有设备（用于Stream）
+  Stream<List<DeviceModel>> watchAllDevices() async* {
+    final db = await database;
+    yield* Stream.periodic(Duration(milliseconds: 500), (_) async {
+      final maps = await db.query('device', orderBy: 'order ASC');
+      return maps.map((e) => DeviceModel.fromMap(e)).toList();
+    }).asyncMap((event) async => await event);
+  }
+
+// 移动设备到某组并更新order
+  Future<void> moveDeviceToGroup(
+      int deviceId, int groupId, int newOrder) async {
+    final db = await database;
+    await db.update(
+      'device',
+      {'group_id': groupId, 'order': newOrder},
+      where: 'id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+// 设置设备为未分组
+  Future<void> ungroupDevice(int deviceId) async {
+    final db = await database;
+    await db.update(
+      'device',
+      {'group_id': null, 'order': 0},
+      where: 'id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  // --- Device & Group Operations ---
+
+  Future<List<GroupModel>> getAllGroups() async {
+    final db = await database;
+    final result = await db.query('groups', orderBy: 'group_order ASC');
+    return result.map((e) => GroupModel.fromMap(e)).toList();
+  }
+
+  Future<List<DeviceModel>> getAllDevices() async {
+    final db = await database;
+    final result = await db.query('devices', orderBy: 'device_order ASC');
+    return result.map((e) => DeviceModel.fromMap(e)).toList();
+  }
+
+  Future<List<DeviceModel>> getUngroupedDevices() async {
+    final db = await database;
+    final result = await db.query('devices', where: 'group_id IS NULL');
+    return result.map((e) => DeviceModel.fromMap(e)).toList();
+  }
+
+  Future<List<DeviceModel>> getDevicesByGroupId(int groupId) async {
+    final db = await database;
+    final result =
+        await db.query('devices', where: 'group_id = ?', whereArgs: [groupId]);
+    return result.map((e) => DeviceModel.fromMap(e)).toList();
+  }
+
+  Future<GroupModel?> getGroupById(int id) async {
+    final db = await database;
+    final result = await db.query('groups', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) return GroupModel.fromMap(result.first);
+    return null;
+  }
+
+  Future<DeviceModel?> getDeviceById(int id) async {
+    final db = await database;
+    final result = await db.query('devices', where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) return DeviceModel.fromMap(result.first);
+    return null;
+  }
+
+  Future<void> updateDevice(DeviceModel device) async {
+    final db = await database;
+    await db.update('devices', device.toMap(),
+        where: 'id = ?', whereArgs: [device.id]);
+    _broadcastChange();
+  }
+
+  Future<void> moveDevicesToGroup(
+      List<DeviceModel> devices, int? groupId) async {
+    final db = await database;
+    final batch = db.batch();
+    for (final d in devices) {
+      batch.update(
+          'devices',
+          {
+            'group_id': groupId,
+            'device_order': d.order,
+          },
+          where: 'id = ?',
+          whereArgs: [d.id]);
+    }
+    await batch.commit(noResult: true);
+    _broadcastChange();
+  }
+
+  Future<void> deleteGroupAndUpdateDevices(int groupId) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('groups', where: 'id = ?', whereArgs: [groupId]);
+      await txn.update('devices', {'group_id': null, 'device_order': 0},
+          where: 'group_id = ?', whereArgs: [groupId]);
+    });
+    _broadcastChange();
+  }
+
+  Future<void> updateDeviceGroupAndOrder(int deviceId,
+      {int? groupId, int order = 0}) async {
+    final dbClient = await db;
+    await dbClient.update(
+      'devices',
+      {
+        'groupId': groupId,
+        'order': order,
+      },
+      where: 'id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  Future<void> reorderDevices(List<DeviceModel> devices) async {
+    final dbClient = await db;
+    final batch = dbClient.batch();
+    for (int i = 0; i < devices.length; i++) {
+      batch.update('devices', {'order': i},
+          where: 'id = ?', whereArgs: [devices[i].id]);
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<int> createGroup(String groupName, {int order = 0}) async {
+    final dbClient = await db;
+    return await dbClient.insert('groups', {
+      'groupName': groupName,
+      'order': order,
+    });
+  }
+
+  Future<void> exportDevicesToCSV(List<DeviceModel> devices) async {
+    final rows = [
+      ['ID', 'Name', 'GroupID'],
+      ...devices
+          .map((d) => [d.id.toString(), d.name, d.groupId?.toString() ?? '']),
+    ];
+    final csvString = const ListToCsvConverter().convert(rows);
+
+    final directory = await getApplicationDocumentsDirectory();
+    final path = '${directory.path}/devices.csv';
+    final file = File(path);
+    await file.writeAsString(csvString);
+    print("CSV exported to $path");
+  }
+
+  Future<void> close() async {
+    await _changeController.close();
+    await _db?.close();
+  }
+
+  void _broadcastChange() {
+    if (!_changeController.isClosed) {
+      _changeController.add(null);
+    }
+  }
+}
+
+
+2.
+features/projects/user_management/stream/core/routes/flutter_hooks_routes.dart
+
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:my/features/projects/user_management/user_management_view.dart';
+import '../../features/home/routes/home_routes.dart';
+import '../../features/hooks_stream_view.dart';
+
+final List<GoRoute> flutterHooks = [
+  GoRoute(
+    path: '/stream',
+    builder: (context, state) => const HooksStreamView(),
+  ),
+  ...homeStreamRoutes,
+  // ...managementStreamRoutes,
+];
+
+features/projects/user_management/stream/features/data/models/device_model.dart
+class DeviceModel {
+  final int id;
+  final String name;
+  final String macAddress;
+  final int? groupId;
+  final int? order;
+
+  DeviceModel({
+    required this.id,
+    required this.name,
+    required this.macAddress,
+    this.groupId,
+    this.order,
+  });
+
+  factory DeviceModel.fromMap(Map<String, dynamic> map) {
+    return DeviceModel(
+      id: map['id'],
+      name: map['name'],
+      macAddress: map['macAddress'],
+      groupId: map['groupId'],
+      order: map['order'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'macAddress': macAddress,
+      'groupId': groupId,
+      'order': order,
+    };
+  }
+
+  DeviceModel copyWith({
+    int? id,
+    String? name,
+    String? macAddress,
+    int? groupId,
+    int? order,
+  }) {
+    return DeviceModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      macAddress: macAddress ?? this.macAddress,
+      groupId: groupId ?? this.groupId,
+      order: order ?? this.order,
+    );
+  }
+}
+
+3.features/projects/user_management/stream/features/data/models/group_model.dart
+
+
+class GroupModel {
+  final int id;
+  final String name;
+
+  GroupModel({required this.id, required this.name});
+
+  factory GroupModel.fromMap(Map<String, dynamic> map) {
+    return GroupModel(
+      id: map['id'],
+      name: map['name'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+    };
+  }
+}
+
+4.
+lib/features/projects/user_management/stream/features/data/models/grouped_device_model.dart
+
+import 'device_model.dart';
+
+class GroupedDeviceModel {
+  final String groupName;
+  final List<DeviceModel> devices;
+
+  GroupedDeviceModel({
+    required this.groupName,
+    required this.devices,
+  });
+}
+
+lib/features/projects/user_management/stream/features/data/providers/device_stream_provider.dart
+import 'dart:async';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/data/db/db_helper.dart';
+import '../state/device_state.dart';
+
+class DeviceNotifier extends StateNotifier<AsyncValue<DeviceState>> {
+  final DbHelper _dbHelper;
+  late final StreamSubscription _subscription;
+
+  DeviceNotifier(this._dbHelper) : super(const AsyncLoading()) {
+    _subscription = _dbHelper.onChange.listen((_) {
+      _reload();
+    });
+    _reload();
+  }
+
+  Future<void> _reload() async {
+    try {
+      final allDevices = await _dbHelper.getAllDevices();
+      final allGroups = await _dbHelper.getAllGroups();
+      state = AsyncData(DeviceState(
+        allDevices: allDevices,
+        cachedGroups: allGroups,
+      ));
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  final allDevicesStreamProvider = StreamProvider<List<DeviceModel>>((ref) {
+    return DBHelper().watchAllDevices(); // use query with join and order
+  });
+
+  final groupedDevicesProvider = Provider<List<GroupedDeviceModel>>((ref) {
+    final allDevices = ref.watch(allDevicesStreamProvider).value ?? [];
+    final Map<int?, List<DeviceModel>> grouped = {};
+
+    for (final device in allDevices) {
+      grouped.putIfAbsent(device.groupId, () => []).add(device);
+    }
+
+    final List<GroupedDeviceModel> result = [];
+
+    grouped.forEach((groupId, devices) {
+      final groupName = ref.read(groupNameByIdProvider(groupId));
+      result.add(GroupedDeviceModel(groupName: groupName, devices: devices));
+    });
+
+    return result;
+  });
+
+  final groupNameByIdProvider = Provider.family<String, int?>((ref, groupId) {
+    final allGroups = ref.watch(allGroupsProvider).value ?? [];
+    if (groupId == null) return '未分组';
+    return allGroups
+        .firstWhere((g) => g.id == groupId,
+            orElse: () => GroupModel(id: -1, groupName: '未知分组', order: 0))
+        .groupName;
+  });
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
+
+5.
+lib/features/projects/user_management/stream/features/data/state/device_state.dart
+
+import '../models/device_model.dart';
+import '../models/group_model.dart';
+
+class DeviceState {
+  final List<DeviceModel> allDevices;
+  final List<GroupModel> cachedGroups;
+
+  DeviceState({required this.allDevices, required this.cachedGroups});
+
+  List<DeviceModel> get ungrouped =>
+      allDevices.where((e) => e.groupId == null).toList();
+
+  Map<GroupModel, List<DeviceModel>> get grouped {
+    final Map<int, GroupModel> groupMap = {
+      for (var g in cachedGroups) g.id: g,
+    };
+
+    final Map<GroupModel, List<DeviceModel>> result = {};
+    for (final d in allDevices) {
+      if (d.groupId != null) {
+        final group = groupMap[d.groupId];
+        if (group != null) {
+          result.putIfAbsent(group, () => []).add(d);
+        }
+      }
+    }
+    return result;
+  }
+}
+
+6.
+lib/features/projects/user_management/stream/features/home/routes/home_routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../views/error_page.dart';
+import '../views/home_view_stream.dart';
+import '../views/grouped_devices_page.dart';
+import '../views/device_detail_page.dart';
+
+final List<GoRoute> homeStreamRoutes = [
+  GoRoute(
+    path: '/home_stream',
+    name: 'home_stream',
+    builder: (context, state) => const HomeViewStream(),
+    routes: [
+      /// /home_stream/group/1?groupName=GroupA
+      GoRoute(
+        path: 'group/:groupId',
+        name: 'grouped_devices',
+        builder: (context, state) {
+          final groupId = int.tryParse(state.pathParameters['groupId'] ?? '');
+          if (groupId == null) {
+            return const ErrorPage('Invalid group ID');
+          }
+          final groupName =
+              state.uri.queryParameters['groupName'] ?? 'Group Devices';
+          return GroupedDevicesPage(groupId: groupId, groupName: groupName);
+        },
+        routes: [
+          /// /home_stream/group/1/device/5
+          GoRoute(
+            path: 'device/:deviceId',
+            name: 'device_detail_from_group',
+            builder: (context, state) {
+              final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+              if (deviceId == null) {
+                return const ErrorPage('Invalid device ID');
+              }
+              return DeviceDetailPage(deviceId: deviceId);
+            },
+          ),
+        ],
+      ),
+
+      /// /home_stream/device/5
+      GoRoute(
+        path: 'device/:deviceId',
+        name: 'device_detail',
+        builder: (context, state) {
+          final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+          if (deviceId == null) {
+            return const ErrorPage('Invalid device ID');
+          }
+          return DeviceDetailPage(deviceId: deviceId);
+        },
+      ),
+    ],
+  ),
+];
+
+7.
+
+lib/features/projects/user_management/stream/features/home/views/home_view_stream.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+
+import '../viewmodels/device_viewmodel.dart';
+
+/// Home Page showing ungrouped and grouped devices
+
+class HomeViewStream extends HookWidget {
+  const HomeViewStream({Key? key}) : super(key: key);
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    final deviceListAsync = ref.watch(deviceStreamProvider);
+
+    return deviceListAsync.when(
+      data: (devices) {
+        final ungrouped = devices.where((d) => d.groupId == null).toList();
+        final groupedMap = <int, List<DeviceModel>>{};
+
+        for (var d in devices) {
+          if (d.groupId != null) {
+            groupedMap.putIfAbsent(d.groupId!, () => []).add(d);
+          }
+        }
+
+        return ListView(
+          children: [
+            Text('未分组'),
+            ...ungrouped.map((d) => ListTile(
+              title: Text(d.name),
+              onTap: () {
+                context.push('/device/${d.id}');
+              },
+            )),
+            Text('已分组'),
+            ...groupedMap.entries.map((entry) {
+              final groupId = entry.key;
+              final deviceList = entry.value;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FutureBuilder(
+                    future: DBHelper().getGroupNameById(groupId),
+                    builder: (ctx, snapshot) {
+                      return Text(snapshot.data ?? 'Group $groupId');
+                    },
+                  ),
+                  ...deviceList.map((d) => ListTile(
+                    title: Text(d.name),
+                    onTap: () {
+                      context.push('/device/${d.id}');
+                    },
+                  )),
+                ],
+              );
+            }),
+          ],
+            ReorderableListView(
+              onReorder: (oldIndex, newIndex) async {
+                final newList = [...devices];
+                if (newIndex > oldIndex) newIndex -= 1;
+                final moved = newList.removeAt(oldIndex);
+                newList.insert(newIndex, moved);
+                await DBHelper().reorderDevices(newList);
+              },
+              children: [
+                for (final device in devices)
+                  ListTile(
+                    key: ValueKey(device.id),
+                    title: Text(device.name),
+                    trailing: Icon(Icons.drag_handle),
+                  ),
+              ],
+            );
+,onAccept: (DeviceModel draggedDevice) async {
+          final newGroupId = await DBHelper().createGroup('新建组');
+          await DBHelper().updateDeviceGroupAndOrder(draggedDevice.id, groupId: newGroupId);
+        },
+            ElevatedButton(
+              onPressed: () async {
+                final devices = ref.read(allDevicesStreamProvider).value ?? [];
+                await DBHelper().exportDevicesToCSV(devices);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('导出成功')));
+              },
+              child: Text("导出所有设备"),
+            );
+,
+        );
+      },
+      error: (err, stack) => Text('Error: $err'),
+      loading: () => CircularProgressIndicator(),
+    );
+  }
+
+}
+}
+
+8.
+
+lib/features/projects/user_management/stream/features/home/views/grouped_devices_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/models/device_model.dart';
+
+class GroupedDeviceDetailPage extends HookConsumerWidget {
+  final String groupName;
+  final List<DeviceModel> devices;
+
+  const GroupedDeviceDetailPage({
+    super.key,
+    required this.groupName,
+    required this.devices,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = useTextEditingController();
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Group: $groupName')),
+      body: ListView.builder(
+        itemCount: devices.length,
+        itemBuilder: (context, index) {
+          final device = devices[index];
+          return ListTile(
+            title: Text(device.name),
+            subtitle: Text('MAC: ${device.macAddress}'),
+            trailing: IconButton(
+              icon: const Icon(Icons.clear),
+              onPressed: () async {
+                await ref
+                    .read(deviceViewModelProvider.notifier)
+                    .ungroupDevice(device);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+
+9.
+
+lib/features/projects/user_management/stream/features/home/views/group_sort_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/data/db/db_helper.dart';
+
+import '../../data/models/device_model.dart';
+import '../../data/models/group_model.dart';
+
+class GroupSortPage extends HookConsumerWidget {
+  final GroupModel group;
+  const GroupSortPage({super.key, required this.group});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final devices = useState<List<DeviceModel>>([]);
+
+    useEffect(() {
+      Future(() async {
+        devices.value = await db.getDevicesByGroup(group.id);
+      });
+      return null;
+    }, []);
+
+    return Scaffold(
+      appBar: AppBar(title: Text('${group.groupName}排序')),
+      body: ReorderableListView(
+        onReorder: (oldIndex, newIndex) {
+          if (newIndex > oldIndex) newIndex -= 1;
+          final item = devices.value.removeAt(oldIndex);
+          devices.value.insert(newIndex, item);
+        },
+        children: [
+          for (int i = 0; i < devices.value.length; i++)
+            ListTile(
+              key: ValueKey(devices.value[i].id),
+              title: Text(devices.value[i].name),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.save),
+        onPressed: () async {
+          await DBHelper().updateDeviceOrder(devices.value);
+          context.pop(); // 返回主页自动刷新
+        },
+      ),
+    );
+  }
+}
+
+10.
+
+
+lib/features/projects/user_management/stream/features/home/views/device_group_assignment_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../data/models/device_model.dart';
+
+class AssignDeviceToGroupPage extends HookConsumerWidget {
+  final DeviceModel device;
+
+  ProviderListenable groupViewModelProvider;
+
+  const AssignDeviceToGroupPage({super.key, required this.device});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groups = ref.watch(groupViewModelProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Assign Group')),
+      body: ListView.builder(
+        itemCount: groups.length,
+        itemBuilder: (context, index) {
+          final group = groups[index];
+          return ListTile(
+            title: Text(group.groupName),
+            onTap: () async {
+              await ref
+                  .read(deviceViewModelProvider.notifier)
+                  .groupDevice(device, group.id);
+              Navigator.pop(context);
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+11.
+
+lib/features/projects/user_management/stream/features/home/views/device_detail_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:go_router/go_router.dart';
+
+class DeviceDetailPage extends HookWidget {
+  final int deviceId;
+
+  const DeviceDetailPage({Key? key, required this.deviceId}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final dbHelper = useProvider(dbHelperProvider);
+    final deviceFuture =
+        useMemoized(() => dbHelper.getDeviceById(deviceId), [deviceId]);
+    final deviceAsync = useFuture(deviceFuture);
+
+    // Local state for editing device name and ip as example
+    final nameController = useTextEditingController();
+    final ipController = useTextEditingController();
+
+    // To access ViewModel for updating
+    final deviceNotifier = useProvider(deviceNotifierProvider.notifier);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Device Detail')),
+      body: deviceAsync.connectionState == ConnectionState.waiting
+          ? const Center(child: CircularProgressIndicator())
+          : deviceAsync.hasError || deviceAsync.data == null
+              ? Center(child: Text('Device not found'))
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('ID: ${deviceAsync.data!.id}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: nameController
+                          ..text = deviceAsync.data!.name,
+                        decoration: const InputDecoration(labelText: 'Name'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: ipController..text = deviceAsync.data!.ip,
+                        decoration:
+                            const InputDecoration(labelText: 'IP Address'),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('MAC: ${deviceAsync.data!.mac}'),
+                      Text(
+                          'Last Connect Time: ${deviceAsync.data!.lastConnectTime ?? 'N/A'}'),
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () async {
+                              await DBHelper().ungroupDevice(device.id!);
+                              context.pop(); // 返回主界面自动刷新
+                            },
+                            child: Text("移出分组"),
+                          ),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final newName = nameController.text.trim();
+                              final newIp = ipController.text.trim();
+
+                              if (newName.isEmpty || newIp.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('Name and IP cannot be empty')),
+                                );
+                                return;
+                              }
+
+                              await deviceNotifier.updateDevice(deviceId, {
+                                'name': newName,
+                                'ip': newIp,
+                                'lastConnectTime':
+                                    DateTime.now().toIso8601String(),
+                              });
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Device updated')),
+                              );
+
+                              // Pop back to previous page (auto-refresh due to stream)
+                              context.pop();
+                            },
+                            child: const Text('Save'),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+    );
+  }
+}
+
+12.
+
+	lib/features/projects/user_management/stream/features/home/routes/home_routes.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../views/error_page.dart';
+import '../views/home_view_stream.dart';
+import '../views/grouped_devices_page.dart';
+import '../views/device_detail_page.dart';
+
+final List<GoRoute> homeStreamRoutes = [
+  GoRoute(
+    path: '/home_stream',
+    name: 'home_stream',
+    builder: (context, state) => const HomeViewStream(),
+    routes: [
+      /// /home_stream/group/1?groupName=GroupA
+      GoRoute(
+        path: 'group/:groupId',
+        name: 'grouped_devices',
+        builder: (context, state) {
+          final groupId = int.tryParse(state.pathParameters['groupId'] ?? '');
+          if (groupId == null) {
+            return const ErrorPage('Invalid group ID');
+          }
+          final groupName =
+              state.uri.queryParameters['groupName'] ?? 'Group Devices';
+          return GroupedDevicesPage(groupId: groupId, groupName: groupName);
+        },
+        routes: [
+          /// /home_stream/group/1/device/5
+          GoRoute(
+            path: 'device/:deviceId',
+            name: 'device_detail_from_group',
+            builder: (context, state) {
+              final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+              if (deviceId == null) {
+                return const ErrorPage('Invalid device ID');
+              }
+              return DeviceDetailPage(deviceId: deviceId);
+            },
+          ),
+        ],
+      ),
+
+      /// /home_stream/device/5
+      GoRoute(
+        path: 'device/:deviceId',
+        name: 'device_detail',
+        builder: (context, state) {
+          final deviceId = int.tryParse(state.params['deviceId'] ?? '');
+          if (deviceId == null) {
+            return const ErrorPage('Invalid device ID');
+          }
+          return DeviceDetailPage(deviceId: deviceId);
+        },
+      ),
+    ],
+  ),
+];
+
+13.
+
+lib/features/projects/user_management/stream/features/hooks_stream_view.dart
+
+class HooksStreamView extends ConsumerWidget {
+  const HooksStreamView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedIndex = ref.watch(selectedIndexProvider);
+
+    final buttonData = [
+      ('home_stream', Icons.people, '/home_stream'),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('这是 HooksStreamView 页面')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double maxWidth = constraints.maxWidth;
+
+            // 决定每个按钮的宽度
+            double itemWidth;
+            if (maxWidth > 1000) {
+              itemWidth = (maxWidth - 48) / 4; // 网页：4列
+            } else if (maxWidth > 600) {
+              itemWidth = (maxWidth - 36) / 3; // 平板：3列
+            } else {
+              itemWidth = (maxWidth - 24) / 2; // 手机：2列
+            }
+
+            return SingleChildScrollView(
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: List.generate(buttonData.length, (index) {
+                  final (label, icon, route) = buttonData[index];
+
+                  return SizedBox(
+                    width: itemWidth,
+                    child: SelectableOutlinedButton(
+....
+                    ),
+                  );
+                }),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+I just want you to fix my bug.
+My code reports an error. Please help me refactor. Generate perfect and runnable code directly.
+Requires Flutter_hooks+stream.
+
+Don't be lazy
+Please give me perfect and runnable code after refactoring.
+Please give me clean,perfect ,complete and runnable English version code directly.I don't need ant file.
+Use you english model anwser me please.
+

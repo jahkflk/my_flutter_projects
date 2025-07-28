@@ -1,5 +1,5 @@
 // import 'package:flutter/foundation.dart';
-// import 'package:my/features/projects/user_management/hooks_riverpod/features/auth/models/user_model.dart';
+// import 'package:my/features/projects/user_management/hooks_riverpod/features/auth/models/device_model.dart';
 // import 'package:sqflite/sqflite.dart';
 // import 'package:path/path.dart';
 //
