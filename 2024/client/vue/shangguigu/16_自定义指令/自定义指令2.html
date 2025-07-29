@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue 自定义指令 v-big & v-fbind</title>
+  <script type="text/javascript" src="../js/vue.js"></script>
+  <style>
+    [v-cloak] {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="root" v-cloak>
+    <h2>当前的 n 值是：<span v-text="n"></span></h2>
+    <h2>放大10倍后的值：<span v-big="n"></span></h2>
+    <button @click="n++">点我 n + 1</button>
+
+    <h2>n 值输入框：</h2>
+    <input type="number" v-model.number="n" v-fbind="true" />
+  </div>
+
+  <script>
+    Vue.config.productionTip = false;
+
+    new Vue({
+      el: '#root',
+      data: {
+        n: 1
+      },
+
+//   directives: {
+//     // big函数会在以下两个时机被调用：
+//     // 1.指令第一次绑定到元素时（bind）：
+//       // Vue 会在 DOM 元素插入之前调用此函数，用于初始化。
+//     // 2.绑定值发生变化时（update）：
+//       // 每当 v-big="n" 中的 n 变化时（比如点击按钮后 n++），Vue 会重新调用此函数来更新 DOM。
+//     big(element, binding) {
+//       element.innerText = binding.value * 10;
+//     }
+//   }
+
+      directives: {
+        big(el, binding) {
+          // 避免不必要的更新
+          if (binding.value !== binding.oldValue) {
+            el.innerText = binding.value * 10;
+          }
+        },
+        fbind: {
+          inserted(el, binding) {
+            if (binding.value) {
+              el.focus();
+            }
+          },
+          update(el, binding) {
+            if (binding.value && binding.value !== binding.oldValue) {
+              el.focus();
+            }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>

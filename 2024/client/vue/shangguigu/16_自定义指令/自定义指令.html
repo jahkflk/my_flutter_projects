@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vue 自定义指令 v-big & v-fbind</title>
+  <script type="text/javascript" src="../js/vue.js"></script>
+  <style>
+    [v-cloak] {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="root" v-cloak>
+    <input type="text" v-model="name"/>
+    <h2>当前的 n 值是：<span v-text="n"></span></h2>
+    <h2>放大10倍后的值：<span v-big="n"></span></h2>
+    <button @click="n++">点我 n + 1</button>
+
+    <h2>n 值输入框：</h2>
+    <input type="number"  v-model.number="n" v-fbind:value="n" />
+  </div>
+
+  <script>
+    Vue.config.productionTip = false;
+    Vue.config.devtools = true;
+
+    new Vue({
+      // el: '#root',
+      data: {
+        n: 1,
+        name:'自定义指令',
+      },
+
+      directives: {
+        big(el, binding) {
+          // 避免不必要的更新
+          if (binding.value !== binding.oldValue) {
+            el.innerText = binding.value * 10;
+          }
+        },
+        fbind: {
+          // 指令与元素成功绑定时
+          bind(el, binding){
+            el.value = binding.value
+            // v-model.number="n"
+          },
+          // 指令所在元素被插入页面时
+          inserted(el, binding) {
+            if (binding.value) {
+              el.focus();
+            }
+          },
+          // 指令所在的模板被重新解析时
+          update(el, binding) {
+            if (binding.value && binding.value !== binding.oldValue) {
+              el.focus();
+            }
+          }
+        }
+      }
+    }).$mount('#root');
+  </script>
+</body>
+</html>

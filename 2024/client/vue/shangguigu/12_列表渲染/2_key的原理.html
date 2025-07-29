@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>key的原理</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <div id="root">
+      <h2>{{name}}</h2>
+      <h2>人员列表</h2>
+      <button @click.once="add">添加一个人员</button>
+      <ul>
+        <li v-for="(p,index) in persons" :key="index">
+          {{p.id}}-{{p.name}}-{{p.age}}
+        </li>
+      </ul>
+    </div>
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+
+      const vm = new Vue({
+        el: "#root",
+        data: {
+          name: "基本列表",
+          persons: [
+            { id: 1, name: "Alice", age: 28 },
+            { id: 2, name: "Bob", age: 34 },
+            { id: 3, name: "Charlie", age: 22 },
+          ],
+        },
+        methods: {
+          add() {
+            const p = { id: 4, name: "Diana", age: 30 };
+            this.persons.unshift(p)
+          },
+        },
+      });
+    </script>
+  </body>
+</html>

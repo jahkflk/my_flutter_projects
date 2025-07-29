@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>列表排序</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <div id="root">
+      <h2>{{ name }}</h2>
+      <h2>人员列表</h2>
+      <input type="text" placeholder="请输入名字" v-model="keyword" />
+      <button @click="sortType = 'asc'">年龄升序</button>
+      <button @click="sortType = 'desc'">年龄降序</button>
+      <button @click="sortType = 'original'">原顺序</button>
+      <ul>
+        <li v-for="(p, index) in filPersons" :key="p.id">
+          {{ p.id }} - {{ p.name }} - {{ p.age }}
+        </li>
+      </ul>
+    </div>
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+      Vue.config.devtools = true;
+
+      const vm = new Vue({
+        el: "#root",
+        data: {
+          name: "基本列表",
+          keyword: "",
+          sortType: "original", // 默认排序方式
+          originalPersons: [ // 保留原始顺序
+            { id: 1, name: "马冬梅", age: 28 },
+            { id: 2, name: "周冬雨", age: 34 },
+            { id: 3, name: "周杰伦", age: 22 },
+            { id: 4, name: "温兆伦", age: 22 },
+          ],
+        },
+        computed: {
+          filPersons() {
+            // 过滤
+            let filtered = this.originalPersons.filter((p) =>
+              p.name.includes(this.keyword)
+            );
+
+            // 排序
+            if (this.sortType === "asc") {
+              return filtered.slice().sort((a, b) => a.age - b.age);
+            } else if (this.sortType === "desc") {
+              return filtered.slice().sort((a, b) => b.age - a.age);
+            } else {
+              return filtered; // 原顺序
+            }
+          },
+        },
+      });
+    </script>
+  </body>
+</html>

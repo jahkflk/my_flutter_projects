@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>事件的基本使用</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+
+    <div id="root">
+        <h2>{{name}}</h2>
+      <button v-on:click="showInfo1">点我提示信息1</button>
+      <button v-on:click="showInfo2(number,$event)">点我提示信息2</button>
+    </div>
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+
+      //创建Vue实例
+      const vm = new Vue({
+        el: "#root", 
+        data: {
+          name: "GoKu",
+        },
+        methods:{
+            showInfo(event){
+                // alert('Hello Vue event')
+                console.log(event.target.innerText)
+                console.log(this === vm)
+            },
+            showInfo2(number,a){
+                // alert('Hello Vue event')
+                console.log(event.target.innerText)
+                console.log(number,a)
+            }
+        }
+      });
+    </script>
+  </body>
+</html>

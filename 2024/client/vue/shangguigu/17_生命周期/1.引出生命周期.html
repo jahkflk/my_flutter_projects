@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vue 指令综合示例</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <style>
+      [v-cloak] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" v-cloak>
+      <h2>{{ name }}</h2>
+      <h2 :style="{ opacity }">欢迎学习 Vue</h2>
+      <button @click="stopFade">停止闪烁</button>
+      <button @click="startFade">再次闪烁</button>
+    </div>
+
+    <script>
+      Vue.config.productionTip = false;
+
+      const vm = new Vue({
+        el: "#root",
+        data() {
+          return {
+            name: "引出生命周期",
+            opacity: 1,
+            timer: null,
+          };
+        },
+        methods: {
+          startFade() {
+            this.timer = setInterval(() => {
+              this.opacity -= 0.01;
+              if (this.opacity <= 0) this.opacity = 1;
+            }, 16);
+          },
+          stopFade() {
+            clearInterval(this.timer);
+          },
+        },
+        // Vue完成模板的解析并把真是的DOM元素放入页面后(挂载完毕后)调用mounted
+        mounted() {
+          this.startFade(); // 页面加载完毕后启动淡入淡出动画
+        },
+      });
+    </script>
+  </body>
+</html>

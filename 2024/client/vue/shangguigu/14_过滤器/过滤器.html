@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vue2 时间戳过滤器</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <div id="root">
+        <h2>原始时间戳：{{ timestamp }}</h2>
+        <h3>格式化后：{{ timestamp | formatDate }}</h3>
+    
+        <!-- 你也可以绑定在其他地方 -->
+        <p>简洁日期：{{ timestamp | formatDate('yyyy-MM-dd') }}</p>
+        <p>只显示时间：{{ timestamp | formatDate('HH:mm:ss') }}</p>
+      </div>
+    
+      <script>
+        // 注册全局过滤器
+        Vue.filter('formatDate', function(value, formatStr = 'yyyy-MM-dd HH:mm:ss') {
+          if (!value) return '';
+          const date = new Date(Number(value));
+          const padZero = num => (num < 10 ? '0' + num : num);
+    
+          const map = {
+            yyyy: date.getFullYear(),
+            MM: padZero(date.getMonth() + 1),
+            dd: padZero(date.getDate()),
+            HH: padZero(date.getHours()),
+            mm: padZero(date.getMinutes()),
+            ss: padZero(date.getSeconds())
+          };
+    
+          return formatStr.replace(/yyyy|MM|dd|HH|mm|ss/g, match => map[match]);
+        });
+    
+        // Vue实例
+        new Vue({
+          el: '#root',
+          data: {
+            name:'时间戳过滤器',
+            timestamp: Date.now()  // 当前时间戳
+          }
+        });
+      </script>
+    </body>
+    </html>

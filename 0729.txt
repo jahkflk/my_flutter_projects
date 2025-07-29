@@ -565,7 +565,6 @@ class UserDtoStream {
 }
 
 13.lib/features/projects/user_management/stream/features/data/models/stream_user_model.dart
-/// models/device_model.dart
 class UserModelStream {
   final int? id;
   final String? name;

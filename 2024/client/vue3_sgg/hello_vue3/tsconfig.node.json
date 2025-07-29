@@ -1,0 +1,43 @@
+{
+  "extends": "@tsconfig/node22/tsconfig.json",
+  "include": [
+    "vite.config.*",
+    "vitest.config.*",
+    "cypress.config.*",
+    "nightwatch.conf.*",
+    "playwright.config.*",
+    "eslint.config.*"
+  ],
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "composite": true,                   // ✅ 必须启用
+    "noEmit": false,                     // ❌ 禁用 noEmit，允许发出文件
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "module": "ESNext",
+    "moduleResolution": "Node",          // 推荐用 Node
+    "types": ["node"],
+    "outDir": "dist/node"                // 建议指定输出目录，避免与 app 冲突
+  }
+}
+
+
+
+// {
+//   "extends": "@tsconfig/node22/tsconfig.json",
+//   "include": [
+//     "vite.config.*",
+//     "vitest.config.*",
+//     "cypress.config.*",
+//     "nightwatch.conf.*",
+//     "playwright.config.*",
+//     "eslint.config.*"
+//   ],
+//   "compilerOptions": {
+//     "noEmit": true,
+//     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+
+//     "module": "ESNext",
+//     "moduleResolution": "Bundler",
+//     "types": ["node"]
+//   }
+// }

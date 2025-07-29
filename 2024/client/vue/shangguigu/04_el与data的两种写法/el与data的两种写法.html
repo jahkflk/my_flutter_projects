@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>el与data的两种写法</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <div id="root">
+      <h1>Hello {{ name }}</h1>
+    </div>
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+
+      const vm = new Vue({
+        //el: "#root",  // 直接挂载到DOM元素上
+        data() {
+          return {
+            name: "GoKu",
+          };
+        },
+      });
+
+      console.log(vm);
+
+      // 如果你想要使用延时挂载，确保DOM元素已经加载
+      setTimeout(() => {
+        vm.$mount("#root");
+      }, 1000);
+    </script>
+  </body>
+</html>

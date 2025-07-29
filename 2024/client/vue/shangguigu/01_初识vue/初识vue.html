@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>初识Vue</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+  </head>
+  <body>
+    <!--
+        初识Vue：
+            1.想让Vue工作，就必须创建一个Vue实例，且传入一个配置对象
+            2.root容器里的代码依然符合html规范，只不过混入了一些Vue的语法
+            3.root容器里的代码被称为【Vue模板】
+            4.一旦data中的数据发生改变，那么页面中用到该数据的地方也会自动更新。
+    -->
+
+    <!-- 
+        Vue 模板语法有2大类：
+            1.插值语法：
+                功能：用于解析标签体内容。
+                写法：{{xxx}}. xxx是js表达式。且可以读到data中的所有属性。
+            2.指令语法：
+                功能：用于解析标签（包括：标签属性，标签内容，绑定事件...）
+                举例：v-bind:href='xxx' 或者简写'xxx'.
+    -->
+
+
+
+    <div id="root">
+      <h1>Hello, {{name.toUpperCase()}}</h1>
+      <h1>指令语法</h1>
+      <a v-bind:href="url1">Click me to MDN</a><br/>
+      <a :href="url2">Click me to w3cSchool</a>
+    </div>
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+
+      //创建Vue实例
+      const vm = new Vue({
+        el: "#root", 
+        data: {
+          name: "GoKu",
+          address:'Tokyo',
+          url1:'https://developer.mozilla.org',
+          url2:'https://www.w3schools.com/',
+        }
+      });
+    </script>
+  </body>
+</html>

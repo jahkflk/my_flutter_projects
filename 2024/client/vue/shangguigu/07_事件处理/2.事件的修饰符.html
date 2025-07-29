@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>初识Vue</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+    <style>
+      *{
+        margin-top: 20px;
+      }
+      .demo1{
+        height:50px;
+        background-color: lightblue;
+      }
+      .box1{
+        padding: 10px;
+        background-color: lightblue;
+      }
+      .box2{
+        height:50px;
+        background-color: orange;
+      }
+      .list{
+        width:200px;
+        height: 100px;
+        background-color: peru;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 
+      修饰符      作用
+      .stop	      阻止事件冒泡（相当于 event.stopPropagation()）
+      .prevent	  阻止默认行为（相当于 event.preventDefault()）
+      .capture	  使用捕获模式添加事件监听器（默认是冒泡模式）
+      .self	      只有事件是从自身元素触发时才触发回调（即 event.target === event.currentTarget）
+      .once	      事件只触发一次
+      .passive	  监听器不会调用 preventDefault()（适用于滚动等性能优化）
+          
+    -->
+
+    <div id="root">
+        <h2>{{name}}</h2>
+      
+      <a href="https://developer.mozilla.org" @click.prevent="showInfo">点我提示信息</a>
+
+      <!-- 阻止冒泡 -->
+      <div @click="showInfo">
+        <button class="demo1" @click.stop="showInfo">
+          阻止冒泡
+      </button>
+    </div>
+
+      <!-- 事件捕获模式capture -->
+      <div class="box1" @click.capture="showMsg(1)">
+        box1
+        <div class="box2" @click="showMsg(2)">box2</div>
+      </div>
+
+     <!-- 事件只触发一次 -->
+      <div class="box1" @click.capture="showMsg(1)">
+        box1
+        <div class="box2" @click="showMsg(2)">box2
+          <button class="demo1" @click.once="onSelfClick">事件只触发一次</button>
+        </div>
+      </div>
+
+      <!-- 操作当前元素才触发，self -->
+      <div class="demo1" @click="showInfo2">
+        <button  @click="showInfo2">
+          操作当前元素才触发，self
+      </button>
+    </div>
+
+    <!-- 事件的默认行为立即执行，无需等待回调执行完毕 -->
+     <ul @wheel.passive="showScroll" class="list">
+      <li>1</li>
+      <li>2</li>
+      <li>3</li>
+      <li>4</li>
+      <li>5</li>
+      <li>6</li>
+      <li>7</li>
+     </ul>
+
+    </div>
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+
+      //创建Vue实例
+      const vm = new Vue({
+        el: "#root", 
+        data: {
+          name: "GoKu",
+        },
+        methods:{
+            showInfo(e){
+                //e.preventDefault();
+                //e.stopPropagation();
+                alert('Hello preventDefault')
+            },
+            showInfo2(e){
+                console.log(e.target)
+            },
+            showMsg(number){
+              alert(number)
+            },
+            showScroll(){
+              for (let i = 0; i < 1000; i++) {
+                console.log("@")
+              }
+              
+            }
+        }
+      });
+    </script>
+  </body>
+</html>

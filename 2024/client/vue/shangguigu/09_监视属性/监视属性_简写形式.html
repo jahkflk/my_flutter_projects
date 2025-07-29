@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>姓名案例_computed简写</title>
+  <script type="text/javascript" src="../js/vue.js"></script>
+  <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+</head>
+<body>
+  <div id="root">
+    <h2>{{ name }}</h2>
+    <h2>今天天气很 {{ info }}</h2>
+    <button @click="changeWeather">切换天气</button><br/>
+  </div>
+
+  <script type="text/javascript">
+    Vue.config.productionTip = false;
+
+    const vm = new Vue({
+      el: "#root",
+      data: {
+        name: "GoKu",
+        isHot: true,
+      },
+      computed: {
+        info() {
+          return this.isHot ? "hot" : "cold";
+        }
+      },
+      methods: {
+        changeWeather() {
+          this.isHot = !this.isHot;
+        }
+      },
+      watch: {
+        //正常写法
+        // isHot: {
+        //   //immediate: true,
+        //   handler(newValue, oldValue) {
+        //     console.log("isHot被修改了", newValue, oldValue);
+        //   }
+        // },
+        
+         //简写
+         isHot: (newValue, oldValue) {
+            console.log("isHot被修改了", newValue, oldValue);
+          }
+      }
+    });
+
+    // 正确写法：监听 numbers 深层变化
+    vm.$watch("numbers", function () {
+      console.log("numbers 改变了");
+    }, {
+      deep: true,
+      immediate: true
+    });
+  </script>
+</body>
+</html>

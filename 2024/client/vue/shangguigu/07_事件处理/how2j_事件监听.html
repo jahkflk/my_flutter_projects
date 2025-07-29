@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="wclassth=device-wclassth, initial-scale=1.0" />
+    <title>how2j监听事件</title>
+    <script type="text/javascript" src="../js/vue.js"></script>
+    <link rel="icon" href="../favicon/favicon.ico" type="image/x-icon" />
+    <style>
+      .demo {
+        /* margin: 0 auto; */
+        background-color: lightblue;
+        margin-top: 20px;
+        padding: 10px;
+      }
+
+      div {
+        width: 200px;
+        cursor: pointer;
+      }
+
+      .grandFather {
+        background: green;
+      }
+
+      .father {
+        background: blue;
+      }
+
+      .me {
+        background: red;
+      }
+
+      .son {
+        background: gray;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 
+      修饰符      作用
+      .stop	      阻止事件冒泡（相当于 event.stopPropagation()）
+      .prevent	  阻止默认行为（相当于 event.preventDefault()）
+      .capture	  使用捕获模式添加事件监听器（默认是冒泡模式）
+      .self	      只有事件是从自身元素触发时才触发回调（即 event.target === event.currentTarget）
+      .once	      事件只触发一次
+      .passive	  监听器不会调用 preventDefault()（适用于滚动等性能优化）
+    -->
+
+    <div id="root">
+      <div class="demo">
+        <h2>{{ name }}</h2>
+        <div>一共点击了 {{ clickNumber }} 次</div>
+        <button v-on:click="count">点击</button>
+        <button @click="count">点击</button>
+      </div>
+
+      
+      <div class="demo">
+        <div>事件修饰符演示</div>
+        <div class="grandFather" v-on:click="doc">
+          grandFather
+          <div class="father" v-on:click="doc">
+            father
+            <div class="me" v-on:click="doc">
+              me
+              <div class="son" v-on:click="doc">son</div>
+              <!-- son -->
+            </div>
+            <!-- me -->
+          </div>
+          <!-- father -->
+        </div>
+        <!-- grandFather -->
+      </div>
+
+      <div class="demo">
+        <div>事件修饰符 阻止冒泡 .stop</div>
+        <div class="grandFather" v-on:click="doc">
+          grandFather
+          <div class="father" v-on:click="doc">
+            father
+            <div class="me" @click.stop="doc">
+              me
+              <div class="son" v-on:click="doc">son</div>
+              <!-- son -->
+            </div>
+            <!-- me -->
+          </div>
+          <!-- father -->
+        </div>
+        <!-- grandFather -->
+      </div>
+
+      <div class="demo">
+        <div>事件修饰符 优先触发 .capture</div>
+        <div class="grandFather" v-on:click="doc">
+          grandFather
+          <div class="father" @click.capture="doc">
+            father
+            <div class="me" @click.stop="doc">
+              me
+              <div class="son" v-on:click="doc">son</div>
+              <!-- son -->
+            </div>
+            <!-- me -->
+          </div>
+          <!-- father -->
+        </div>
+        <!-- grandFather -->
+      </div>
+
+
+      <div class="demo">
+        <div>事件修饰符 只有自己能触发，子元素无法触发.self</div>
+        <div class="grandFather" v-on:click="doc">
+          grandFather
+          <div class="father" @click.self="doc">
+            father
+            <div class="me" @click="doc">
+              me
+              <div class="son" v-on:click="doc">son</div>
+              <!-- son -->
+            </div>
+            <!-- me -->
+          </div>
+          <!-- father -->
+        </div>
+        <!-- grandFather -->
+      </div>
+
+      <div class="demo">
+        <div>事件修饰符 只能提交一次 .once</div>
+        <div class="grandFather" v-on:click="doc">
+          grandFather
+          <div class="father" @click.once="doc">
+            father
+            <div class="me" @click="doc">
+              me
+              <div class="son" v-on:click="doc">son</div>
+              <!-- son -->
+            </div>
+            <!-- me -->
+          </div>
+          <!-- father -->
+        </div>
+        <!-- grandFather -->
+      </div>
+
+      <div class="demo">
+        <div>事件修饰符 阻止提交 .prevent</div>
+        <a href="https://developer.mozilla.org" @click="jump" >正常的链接 https://developer.mozilla.org</a>
+  
+  <br>
+  <a href="https://developer.mozilla.org" @click.prevent="jump" >prevent jump()之后的链接 https://developer.mozilla.org</a>
+  <br>
+  <a href="https://developer.mozilla.org" @click.prevent >纯prevent之后的链接 https://developer.mozilla.org</a>
+  
+  <br>
+  <br>
+  <form @submit="jump" action="https://developer.mozilla.org">
+  	<button type="submit">正常的form</button>
+  </form>
+  <form @submit.prevent="jump" action="https://developer.mozilla.org">
+  	<button type="submit">prevent jump()之后的form</button>
+  </form>
+  <form @submit.prevent action="https://developer.mozilla.org">
+  	<button type="submit">纯prevent之后的form</button>
+  </form>
+      </div>
+      
+    </div>
+    <!-- root -->
+
+    <script type="text/javascript">
+      Vue.config.productionTip = false;
+
+      // 创建Vue实例
+      const vm = new Vue({
+        el: "#root",
+        data: {
+          name: "监听事件",
+          clickNumber: 0,
+        },
+        methods: {
+          count() {
+            this.clickNumber++;
+          },
+          doc(e) {
+            const className = e.currentTarget.className;
+            alert(className);
+          },
+          jump:function(){
+              alert("jump()函数被调用");
+          },
+        },
+      });
+    </script>
+  </body>
+</html>
