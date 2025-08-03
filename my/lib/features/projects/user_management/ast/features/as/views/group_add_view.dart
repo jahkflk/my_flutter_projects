@@ -10,10 +10,19 @@ class GroupAppView extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final form = ref.watch(groupRegisterFormProvider);
+    final formState = ref.watch(groupRegisterFormProvider);
     final notifier = ref.read(groupRegisterFormProvider.notifier);
 
     final groupNameController = useTextEditingController();
+
+    // 只在初始化时设置一次文本框内容，避免输入时光标跳动
+    useEffect(() {
+      groupNameController.text = formState.maybeWhen(
+        data: (state) => state.groupName,
+        orElse: () => '',
+      );
+      return null;
+    }, []);
 
     final submitClicked = useState(false);
 
@@ -21,12 +30,14 @@ class GroupAppView extends HookConsumerWidget {
       appBar: AppBar(title: const Text('Register')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: form.when(
+        child: formState.when(
           data: (state) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('groupName (Login ID)',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Group Name (Login ID)',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               TextField(
                 controller: groupNameController,
                 decoration: InputDecoration(
@@ -37,13 +48,21 @@ class GroupAppView extends HookConsumerWidget {
                       : null,
                 ),
                 onChanged: notifier.updateGroupName,
+                enabled: !state.isSubmitting,
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () async {
-                  submitClicked.value = true;
-                  await notifier.submit(context); // 👈 添加 context 参数
-                },
+                onPressed: state.isSubmitting
+                    ? null
+                    : () async {
+                        submitClicked.value = true;
+                        await notifier.submit(context);
+                        // 提交成功后清空输入框和错误状态
+                        if (context.mounted && !state.isSubmitting) {
+                          groupNameController.clear();
+                          submitClicked.value = false;
+                        }
+                      },
                 child: state.isSubmitting
                     ? const CircularProgressIndicator()
                     : const Text('Submit'),
@@ -51,7 +70,7 @@ class GroupAppView extends HookConsumerWidget {
             ],
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text('Error: $e'),
+          error: (e, _) => Center(child: Text('Error: $e')),
         ),
       ),
     );

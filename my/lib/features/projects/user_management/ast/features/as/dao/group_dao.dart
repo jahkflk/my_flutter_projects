@@ -8,7 +8,7 @@ import '../models/group_model.dart';
 class GroupDao {
   const GroupDao(); // ✅ 添加 const 构造函数，方便 Provider 实例化
 
-  static Future<bool> register(GroupRegisterFormDto dto) async {
+  Future<bool> register(GroupRegisterFormDto dto) async {
     final db = await DbHelper.instance.database;
     try {
       await db.insert("groups", dto.toMap());
