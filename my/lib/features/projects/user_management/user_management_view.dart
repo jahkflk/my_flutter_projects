@@ -14,6 +14,8 @@ class UserManagementView extends ConsumerWidget {
     final buttonData = [
       ('stream', Icons.build, '/stream'),
       ('flutter_hooks', Icons.people, '/flutter_hooks'),
+      ('flutter_register_form', Icons.people, '/flutter_register_form'),
+      ('ast', Icons.people, '/ast'),
     ];
 
     return Scaffold(

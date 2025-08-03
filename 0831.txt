@@ -1,0 +1,295 @@
+lib\features\devices\views\device_add_page.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
+
+import '../dto/device_register_form_dto.dart';
+import '../providers/device_provider.dart';
+import '../../group/providers/group_provider.dart';
+
+class DeviceAddPage extends HookConsumerWidget {
+  const DeviceAddPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nameController = useTextEditingController();
+    final macController = useTextEditingController();
+    final groupListAsync = ref.watch(groupListProvider);
+    final isLoading = useState(false);
+    final selectedGroupId = useState<int?>(null);
+    final errorText = useState<String?>(null);
+
+    Future<void> tryRegister() async {
+      errorText.value = null;
+      final name = nameController.text.trim();
+      final mac = macController.text.trim();
+
+      if (name.isEmpty) {
+        errorText.value = 'Device name is required';
+        return;
+      }
+      if (mac.isEmpty) {
+        errorText.value = 'MAC address is required';
+        return;
+      }
+      // TODO: add MAC format validation if needed
+
+      isLoading.value = true;
+      final dto = DeviceRegisterFormDto(
+        name: name,
+        mac: mac,
+        groupId: selectedGroupId.value,
+      );
+      await ref.read(deviceListProvider.notifier).addDevice(dto);
+      isLoading.value = false;
+      if (context.mounted) {
+        context.pop();
+      }
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Add Device')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: groupListAsync.when(
+          data: (groups) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Device Name'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: macController,
+                  decoration: const InputDecoration(labelText: 'MAC Address'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int?>(
+                  decoration: const InputDecoration(labelText: 'Group'),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('No Group'),
+                    ),
+                    ...groups.map(
+                      (g) => DropdownMenuItem<int?>(
+                        value: g.id,
+                        child: Text(g.name),
+                      ),
+                    ),
+                  ],
+                  value: selectedGroupId.value,
+                  onChanged: (val) => selectedGroupId.value = val,
+                ),
+                if (errorText.value != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(errorText.value!, style: const TextStyle(color: Colors.red)),
+                  ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: isLoading.value ? null : tryRegister,
+                  child: isLoading.value
+                      ? LoadingAnimationWidget.staggeredDotsWave(color: Colors.white, size: 24)
+                      : const Text('Register'),
+                ),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error loading groups: $e')),
+        ),
+      ),
+    );
+  }
+}
+
+lib\features\devices\views\device_detail_page.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+
+import '../../devices/providers/device_provider.dart';
+import 'package:collection/collection.dart'; 
+
+class DeviceDetailPage extends ConsumerWidget {
+  final int deviceId;
+  const DeviceDetailPage({required this.deviceId, super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final devicesAsync = ref.watch(deviceListProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Device Details')),
+      body: devicesAsync.when(
+        data: (devices) {
+          final device = devices.firstWhere((d) => d.id == deviceId, orElse: () => null);
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(device.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('MAC Address: ${device.mac}'),
+                const SizedBox(height: 8),
+                Text('Group ID: ${device.groupId ?? "None"}'),
+                const SizedBox(height: 8),
+                Text('Created At: ${device.createdAt?.toLocal().toString() ?? "N/A"}'),
+                const SizedBox(height: 8),
+                Text('Last Connected At: ${device.lastConnectedAt?.toLocal().toString() ?? "N/A"}'),
+              ],
+            ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+}
+
+lib\features\group\views\group_devices_page.dart
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../devices/providers/device_provider.dart';
+import '../providers/group_provider.dart';
+
+class GroupDevicesPage extends ConsumerWidget {
+  final int groupId;
+  const GroupDevicesPage({required this.groupId, super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupAsync = ref.watch(groupListProvider);
+    final devicesAsync = ref.watch(deviceListProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Devices in Group')),
+      body: groupAsync.when(
+        data: (groups) {
+          final group = groups.firstWhere((g) => g.id == groupId, orElse: () => null);
+          if (group == null) return const Center(child: Text('Group not found'));
+
+          return devicesAsync.when(
+            data: (devices) {
+              final devicesInGroup = devices.where((d) => d.groupId == groupId).toList();
+              if (devicesInGroup.isEmpty) {
+                return const Center(child: Text('No devices in this group.'));
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: devicesInGroup.length,
+                itemBuilder: (context, index) {
+                  final device = devicesInGroup[index];
+                  return ListTile(
+                    title: Text(device.name),
+                    subtitle: Text('MAC: ${device.mac}'),
+                    onTap: () => context.push('/device/${device.id}'),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Error loading devices: $e')),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error loading groups: $e')),
+      ),
+    );
+  }
+}
+lib\route\app_router.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:hook_crud_demo/features/home/view/home_page.dart';
+import 'package:hook_crud_demo/features/devices/views/device_add_page.dart';
+import 'package:hook_crud_demo/features/devices/views/device_detail_page.dart';
+import 'package:hook_crud_demo/features/group/views/group_add_page.dart';
+import 'package:hook_crud_demo/features/group/views/group_devices_page.dart';
+
+class AppRouter {
+  static final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const HomePage()),
+      GoRoute(path: '/device/add', builder: (_, __) => const DeviceAddPage()),
+      GoRoute(path: '/group/add', builder: (_, __) => const GroupAddPage()),
+      GoRoute(
+        path: '/device/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.params['id'] ?? '');
+          if (id == null) {
+            return const Scaffold(body: Center(child: Text('Invalid Device ID')));
+          }
+          return DeviceDetailPage(deviceId: id);
+        },
+      ),
+      GoRoute(
+        path: '/group/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.params['id'] ?? '');
+          if (id == null) {
+            return const Scaffold(body: Center(child: Text('Invalid Group ID')));
+          }
+          return GroupDevicesPage(groupId: id);
+        },
+      ),
+    ],
+  );
+}
+
+Assuming my home page initializes by loading the following data from the database:
+
+The main page has a "+" button that navigates to device_m and group_m pages. Each of these two pages has 4 buttons to navigate to Create, Read, Update, and Delete (CRUD) pages.
+
+The device_add and group_add pages' register forms should have the same form validation effect as in the example picture above. When submitting the register form, use RegisterFormDto for the model.
+
+In device_add, besides name and mac, there is also a dropdown for selecting from the groups table. After clicking the register button, add the package loading_animation_widget via flutter pub add.
+
+When the main page initializes, it loads a List<DeviceModel> provided by a shared provider. The main page filters out devices that are ungrouped and those that are grouped.
+
+Page navigation is as follows:
+
+Clicking on ungrouped devices on the main page → navigates to the device detail page.
+
+Clicking on a grouped device’s group (e.g., group1) on the main page → shows details of each device in group1 → clicking a device → navigates to the device detail page.
+
+Clicking on another grouped device’s group (e.g., group2) on the main page → shows details of each device in group2 → clicking a device → navigates to the device detail page.
+
+
+
+SQL with relationships (free to adapt):
+ungroupedModel = SELECT * FROM devices WHERE groupid IS NULL;
+groupedModel = SELECT * FROM devices INNER JOIN groups ON devices.groupid = groups.id;
+
+Please build a perfect, runnable English version MVVM code in Flutter using:
+
+flutter_hooks
+
+hooks_riverpod
+
+AsyncNotifier
+
+GoRouter
+
+family
+
+useEffect
+
+useMemoized
+
+sqflite
+
+
+Please fix my code and then give me clean,perfect, complete, runnable souce code.
+I do not want any files, just the full code here in chat.
+Now anwser please.

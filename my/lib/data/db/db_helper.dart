@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:my/features/projects/user_management/ast/features/data/db/as_table.dart';
 import 'package:my/features/projects/user_management/hooks_riverpod/features/data/db/auth_table.dart';
 import 'package:my/features/projects/user_management/stream/features/data/db/stream_auth_table.dart';
 import 'package:path/path.dart';
@@ -40,6 +41,7 @@ class DbHelper {
     // auth table
     await AuthTable.createTable(db);
     await AuthTableStream.createTable(db);
+    await AsTable.createTable(db);
   }
 
   static Future<void> _onUpgrade(

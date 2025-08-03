@@ -1,0 +1,46 @@
+Assuming my home page initializes by loading the following data from the database:
+
+The main page has a "+" button that navigates to device_m and group_m pages. Each of these two pages has 4 buttons to navigate to Create, Read, Update, and Delete (CRUD) pages.
+
+The device_add and group_add pages' register forms should have the same form validation effect as in the example picture above. When submitting the register form, use RegisterFormDto for the model.
+
+In device_add, besides name and mac, there is also a dropdown for selecting from the groups table. After clicking the register button, add the package loading_animation_widget via flutter pub add.
+
+When the main page initializes, it loads a List<DeviceModel> provided by a shared provider. The main page filters out devices that are ungrouped and those that are grouped.
+
+Page navigation is as follows:
+
+Clicking on ungrouped devices on the main page → navigates to the device detail page.
+
+Clicking on a grouped device’s group (e.g., group1) on the main page → shows details of each device in group1 → clicking a device → navigates to the device detail page.
+
+Clicking on another grouped device’s group (e.g., group2) on the main page → shows details of each device in group2 → clicking a device → navigates to the device detail page.
+
+
+
+SQL with relationships (free to adapt):
+ungroupedModel = SELECT * FROM devices WHERE groupid IS NULL;
+groupedModel = SELECT * FROM devices INNER JOIN groups ON devices.groupid = groups.id;
+
+Please build a perfect, runnable English version MVVM code in Flutter using:
+
+flutter_hooks
+
+hooks_riverpod
+
+AsyncNotifier
+
+GoRouter
+
+family
+
+useEffect
+
+useMemoized
+
+sqflite
+
+
+Please fix my code and then give me clean,perfect, complete, runnable souce code.
+I do not want any files, just the full code here in chat.
+Now anwser please.

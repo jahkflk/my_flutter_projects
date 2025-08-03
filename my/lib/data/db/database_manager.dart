@@ -4,7 +4,7 @@
 // import 'package:path/path.dart';
 //
 // import 'db_helper.dart';
-// import 'features/projects/user_management/hooks_riverpod/auth/auth_dao.dart';
+// import 'features/projects/user_management/hooks_riverpod/auth/group_dao.dart';
 //
 // class DatabaseManager {
 //   static Database? _db;
