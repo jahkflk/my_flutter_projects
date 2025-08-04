@@ -1,0 +1,218 @@
+CREATE TABLE groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE devices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+mac TEXT unique,
+  group_id INTEGER,
+create_at,
+last connencted_at.
+  FOREIGN KEY(group_id) REFERENCES groups(id)
+);
+
+// ✅ Flutter MVVM: Devices + Groups 管理系统
+// 完整示例：Flutter_hooks + Riverpod + AsyncNotifier + GoRouter + SQLite + 校验 + Loading
+
+// -------------------------
+// main.dart
+// -------------------------
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'router/app_router.dart';
+
+void main() {
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
+      routerConfig: AppRouter.router,
+    );
+  }
+}
+
+// -------------------------
+// router/app_router.dart
+// -------------------------
+import 'package:go_router/go_router.dart';
+import '../features/home/views/home_page.dart';
+import '../features/devices/views/device_add_page.dart';
+import '../features/devices/views/device_detail_page.dart';
+import '../features/groups/views/group_add_page.dart';
+
+class AppRouter {
+  static final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const HomePage()),
+      GoRoute(path: '/device/add', builder: (_, __) => const DeviceAddPage()),
+      GoRoute(path: '/group/add', builder: (_, __) => const GroupAddPage()),
+      GoRoute(path: '/device/:id', builder: (_, state) {
+        final id = int.parse(state.params['id']!);
+        return DeviceDetailPage(id: id);
+      }),
+    ],
+  );
+}
+
+// -------------------------
+// core/validators/input_validators.dart
+// -------------------------
+bool isValidMac(String mac) {
+  final regex = RegExp(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})\$');
+  return regex.hasMatch(mac);
+}
+
+bool isNotEmpty(String value) => value.trim().isNotEmpty;
+
+// -------------------------
+// features/devices/models/device_model.dart
+// -------------------------
+class DeviceModel {
+  final int id;
+  final String name;
+  final String mac;
+  final int? groupId;
+
+  DeviceModel({
+    required this.id,
+    required this.name,
+    required this.mac,
+    this.groupId,
+  });
+
+  factory DeviceModel.fromMap(Map<String, dynamic> map) => DeviceModel(
+        id: map['id'],
+        name: map['name'],
+        mac: map['mac'],
+        groupId: map['group_id'],
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'mac': mac,
+        'group_id': groupId,
+      };
+}
+
+// -------------------------
+// features/groups/models/group_model.dart
+// -------------------------
+class GroupModel {
+  final int id;
+  final String groupName;
+  final int order;
+
+  GroupModel({required this.id, required this.groupName, required this.order});
+
+  factory GroupModel.fromMap(Map<String, dynamic> map) => GroupModel(
+        id: map['id'],
+        groupName: map['name'],
+        order: map['order'] ?? 0,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': groupName,
+        'order': order,
+      };
+}
+
+// -------------------------
+// features/groups/views/group_add_page.dart
+// -------------------------
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class GroupAddPage extends HookConsumerWidget {
+  const GroupAddPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nameController = useTextEditingController();
+    final orderController = useTextEditingController();
+    final errorText = useState<String?>(null);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register Group')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Group Name'),
+            ),
+            TextField(
+              controller: orderController,
+              decoration: const InputDecoration(labelText: 'Display Order'),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isEmpty) {
+                  errorText.value = 'Group name is required';
+                  return;
+                }
+                context.pop();
+              },
+              child: const Text('Register'),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -------------------------
+// features/devices/views/device_detail_page.dart
+// -------------------------
+import 'package:flutter/material.dart';
+
+class DeviceDetailPage extends StatelessWidget {
+  final int id;
+  const DeviceDetailPage({super.key, required this.id});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Device #$id')),
+      body: Center(
+        child: Text('Detail view for Device ID $id'),
+      ),
+    );
+  }
+}
+
+
+
+假设我的home页面初始化时从数据库加载如下1，2数据：
+1.主页面有+按钮，可以去到device_m和group_m页面，这2个页面分别有4个按钮可以去到增删改查页面。
+2.device_add和group_add页面的register应该和上面图片中的例子的表单校验效果一样，register的表单登录时请用传到模型时请用RegisterFormDto。
+device_add除了name和mac，还有groups表的下拉框。点击register按钮后加载flutter pub add loading_animation_widget.
+3.主页面初始化加载List<DeviceModel  >一个List，有共享provider提供， 主页面过滤出未分组的设备，已分组的设备。
+3.页面迁移如下：
+主页面点击未分许设备→设备详情页面
+主页面点击已分组设备的组group1→group1组设备的各个设备详细→在点击设备→设备详情页面
+主页面点击已分组设备的组group2→group2组设备的各个设备详细→在点击设备→设备详情页面
+
+
+
+sql如下结合关系如下，可自由发挥。
+ungroupedModel = select ＊　from devices where groupid is null;
+groupedModel  = select * from devices  inner join groups where device.groupid =  group.id
+
+请用Flutter_hooks + hooks_riverpod + asyncNotifier + Gorouter +family + useEffect + useMemoized + sqflite
+构建一套MVVM英文版完美可运行的英文版代码，我不需要任何文件。

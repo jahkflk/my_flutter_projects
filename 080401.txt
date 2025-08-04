@@ -1,0 +1,263 @@
+lib/core/validators/input_validators.dart
+bool isValidEmail(String email) {
+  final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+  return emailRegex.hasMatch(email);
+}
+
+bool isValidMac(String mac) {
+  final macRegex = RegExp(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$');
+  return macRegex.hasMatch(mac);
+}
+
+bool isValidPassword(String password) {
+  final pwRegex = RegExp(r'^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#\$%^&*(),.?":{}|<>]).{8,64}$');
+  return pwRegex.hasMatch(password);
+}
+
+bool isNotEmpty(String value) => value.trim().isNotEmpty;
+
+
+lib/features/projects/user_management/ast/features/as/views/group_add_view.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/core/validators/input_validators.dart';
+
+import '../provider/register_form_notifier.dart';
+
+class GroupAppView extends HookConsumerWidget {
+  const GroupAppView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final form = ref.watch(groupRegisterFormProvider);
+    final notifier = ref.read(groupRegisterFormProvider.notifier);
+
+    final groupNameController = useTextEditingController();
+
+    final submitClicked = useState(false);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Register')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: form.when(
+          data: (state) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('groupName (Login ID)',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              TextField(
+                controller: groupNameController,
+                decoration: InputDecoration(
+                  hintText: 'example@example.com',
+                  errorText:
+                      submitClicked.value && !isValidEmail(state.groupName)
+                          ? 'Invalid groupName format'
+                          : null,
+                ),
+                onChanged: notifier.updateGroupName,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  submitClicked.value = true;
+                  await notifier.submit(context); // 👈 添加 context 参数
+                },
+                child: state.isSubmitting
+                    ? const CircularProgressIndicator()
+                    : const Text('Submit'),
+              ),
+            ],
+          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Text('Error: $e'),
+        ),
+      ),
+    );
+  }
+}
+
+lib/features/projects/user_management/ast/features/as/models/group_model.dart
+// -------------------------
+// features/groups/models/group_model.dart
+// -------------------------
+class GroupModel {
+  final int id;
+  final String groupName;
+  final int order;
+
+  GroupModel({
+    required this.id,
+    required this.groupName,
+    required this.order,
+  });
+
+  factory GroupModel.fromMap(Map<String, dynamic> map) {
+    return GroupModel(
+      id: map['id'],
+      groupName: map['name'],
+      order: map['order'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': groupName,
+      'order': order,
+    };
+  }
+
+  GroupModel copyWith({
+    int? id,
+    String? groupName,
+    int? order,
+  }) {
+    return GroupModel(
+      id: id ?? this.id,
+      groupName: groupName ?? this.groupName,
+      order: order ?? this.order,
+    );
+  }
+}
+
+
+lib/features/projects/user_management/ast/features/as/provider/group_register_form_notifier.dart
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:my/core/validators/input_validators.dart';
+
+import '../models/group_form_state.dart';
+
+class GroupRegisterFormNotifier extends AsyncNotifier<GroupFormState> {
+  @override
+  GroupFormState build() => const GroupFormState();
+
+  void updateGroupName(String value) {
+    state = AsyncData(state.value!.copyWith(groupName: value));
+  }
+
+  Future<void> submit(BuildContext context) async {
+    final s = state.value!;
+    final isValidGroupName = isValidEmail(s.groupName);
+
+    if (!isValidGroupName) return;
+
+    state = AsyncData(s.copyWith(isSubmitting: true));
+    await Future.delayed(const Duration(seconds: 2)); // Simulate API
+
+    state = AsyncData(s.copyWith(isSubmitting: false));
+
+    // 🟢 Navigate to Home
+    if (context.mounted) {
+      context.pushNamed('/home');
+    }
+  }
+}
+
+final groupRegisterFormProvider =
+    AsyncNotifierProvider<GroupRegisterFormNotifier, GroupFormState>(
+        () => GroupRegisterFormNotifier());
+
+lib/features/projects/user_management/ast/features/as/dto/group_register_form_dto.dart
+class GroupRegisterFormDto {
+  final String name;
+  final int order;
+
+  GroupRegisterFormDto({required this.name, required this.order});
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'displayOrder': order,
+      };
+}
+
+lib/features/projects/user_management/ast/features/as/dao/group_dao.dart
+import 'package:my/data/db/db_helper.dart';
+import '../../data/db/auth_table.dart';
+import '../../data/models/user_model.dart';
+import '../dto/group_register_form_dto.dart';
+import '../models/group_model.dart';
+
+class GroupDao {
+  static Future<bool> register(
+      GroupRegisterFormDto groupRegisterFormDto) async {
+    final db = await DbHelper.instance.database;
+
+    try {
+      await db.insert(AsTable.tableName, GroupModel);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+lib/features/projects/user_management/ast/features/as/routes/as_routes.dart
+import 'package:go_router/go_router.dart';
+
+import '../views/as_view.dart';
+import '../views/device_add_view.dart';
+import '../views/group_add_view.dart';
+
+final List<GoRoute> AsRoutes = [
+  GoRoute(
+    path: '/as',
+    builder: (context, state) => const AsView(),
+  ),
+  GoRoute(
+    path: '/group_add',
+    builder: (context, state) => const GroupAppView(),
+  ),
+  GoRoute(
+    path: '/device_add',
+    builder: (context, state) => const DeviceAppView(),
+  ),
+];
+lib/features/projects/user_management/ast/features/data/db/auth_table.dart
+import 'package:sqflite/sqlite_api.dart';
+
+class AsTable {
+  static const String tableName = 'as_table';
+
+  static Future<void> createTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableName (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        email TEXT NOT NULL,
+        password TEXT NOT NULL,
+        createdAt TEXT,
+        updatedAt TEXT
+      )
+    ''');
+    await db.execute('''
+          CREATE TABLE groups(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            display_order INTEGER DEFAULT 0
+          );
+        ''');
+    await db.execute('''
+          CREATE TABLE devices(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            mac TEXT NOT NULL,
+            group_id INTEGER,
+            created_at TEXT,
+            last_connected_at TEXT,
+            FOREIGN KEY (group_id) REFERENCES groups(id)
+          );
+        ''');
+  }
+}
+
+
+需求：
+2.device_add_view和group_add_view页面的表单校验效果一样，group_add_view的表单登录时请用传到模型时请用GroupRegisterFormDto。
+2.device_add_view的表单登录时请用传到模型时请用DeviceRegisterFormDto。
+3.device_add_view需要加载一个group表的下拉菜单。group_add_view状态变化时3.device_add_view能实时监测到。
+4.以后状态变化用...[state, ...]控制。
+请给我完美可运行的代码。
+
+
