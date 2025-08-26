@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:my/features/zcrud/register_form/core/routes/z_crud_routes.dart';
 
 import '../../projects/routes/projects_routes.dart';
 import '../../udemy/routes/udemy_routes.dart';
@@ -62,4 +63,5 @@ final List<GoRoute> myLearningRoutes = [
   ...langchainRoutes,
   ...ragRoutes,
   ...promptDesignRoutes,
+  ...zCrudRoutes,
 ];

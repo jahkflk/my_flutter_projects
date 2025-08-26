@@ -41,7 +41,7 @@ class RegisterFormNotifier extends AsyncNotifier<RegisterFormState> {
 
     // 🟢 Navigate to Home
     if (context.mounted) {
-      context.pushNamed('/home');
+      context.pushNamed('/z_home');
     }
   }
 }

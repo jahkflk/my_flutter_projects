@@ -13,7 +13,7 @@ class FlutterRegisterForm extends ConsumerWidget {
     final selectedIndex = ref.watch(selectedIndexProvider);
 
     final buttonData = [
-      ('register_form', Icons.people, '/register_form'),
+      ('z_login', Icons.people, '/z_login'),
     ];
 
     return Scaffold(

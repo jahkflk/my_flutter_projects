@@ -40,6 +40,7 @@ class myLearningView extends ConsumerWidget {
       ('LangChain 学习', Icons.fork_right, '/langchain'),
       ('RAG 技术实践', Icons.merge_type, '/rag'),
       ('Prompt 工程技巧', Icons.tips_and_updates, '/prompt-design'),
+      ('zCrud', Icons.tips_and_updates, '/zcrud'),
     ];
 
     return Scaffold(

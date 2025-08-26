@@ -9,6 +9,7 @@ class RegisterPage extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    debugPrint('RegisterPage build');
     final form = ref.watch(registerFormProvider);
     final notifier = ref.read(registerFormProvider.notifier);
 
