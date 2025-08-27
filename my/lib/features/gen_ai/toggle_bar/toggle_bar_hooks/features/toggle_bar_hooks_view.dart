@@ -15,6 +15,7 @@ class ToggleBarHooksView extends ConsumerWidget {
     final buttonData = [
       ('segmented', Icons.people, '/segmented'),
       ('segmented_ud', Icons.people, '/segmented_ud'),
+      ('SegmentedTabsPage', Icons.people, '/segmented_tabs'),
     ];
 
     return Scaffold(
