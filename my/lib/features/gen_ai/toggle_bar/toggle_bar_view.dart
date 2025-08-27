@@ -4,19 +4,20 @@ import 'package:go_router/go_router.dart';
 import 'package:my/core/widgets/selectable_button_group.dart';
 import '../../../core/widgets/selectable_outlined_button.dart';
 
-class GenAiView extends ConsumerWidget {
-  const GenAiView({super.key});
+class ToggleBarView extends ConsumerWidget {
+  const ToggleBarView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(selectedIndexProvider);
 
     final buttonData = [
-      ('toggle_bar', Icons.build, '/toggle_bar'),
+      ('toggle_bar_hooks', Icons.people, '/toggle_bar_hooks'),
+      ('toggle_bar_rp', Icons.people, '/toggle_bar_rp'),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('这是 GenAiView 页面')),
+      appBar: AppBar(title: const Text('这是 ToggleBarView 页面')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: LayoutBuilder(

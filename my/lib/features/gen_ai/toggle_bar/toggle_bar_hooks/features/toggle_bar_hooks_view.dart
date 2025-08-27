@@ -2,21 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:my/core/widgets/selectable_button_group.dart';
-import '../../../core/widgets/selectable_outlined_button.dart';
 
-class GenAiView extends ConsumerWidget {
-  const GenAiView({super.key});
+import 'package:my/core/widgets/learning_viewmodel.dart';
+
+class ToggleBarHooksView extends ConsumerWidget {
+  const ToggleBarHooksView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(selectedIndexProvider);
 
     final buttonData = [
-      ('toggle_bar', Icons.build, '/toggle_bar'),
+      ('segmented', Icons.people, '/segmented'),
+      ('segmented_ud', Icons.people, '/segmented_ud'),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('这是 GenAiView 页面')),
+      appBar: AppBar(title: const Text('这是 ToggleBarHooksView 页面')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: LayoutBuilder(
